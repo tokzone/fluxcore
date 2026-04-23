@@ -2,6 +2,7 @@ package message
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -405,4 +406,113 @@ func TestCloneEmptyMessages(t *testing.T) {
 	if cloned.Messages != nil && len(cloned.Messages) != 0 {
 		t.Errorf("expected empty messages, got %d", len(cloned.Messages))
 	}
+}
+
+func TestMessageRequestValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     *MessageRequest
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "missing_model",
+			req:     &MessageRequest{},
+			wantErr: true,
+			errMsg:  "model is required",
+		},
+		{
+			name:    "missing_messages",
+			req:     &MessageRequest{Model: "gpt-4"},
+			wantErr: true,
+			errMsg:  "messages is required",
+		},
+		{
+			name:    "negative_temperature",
+			req:     &MessageRequest{Model: "gpt-4", Messages: []Message{{}}, Temperature: -0.1},
+			wantErr: true,
+			errMsg:  "temperature must be in [0, 2]",
+		},
+		{
+			name:    "temperature_too_high",
+			req:     &MessageRequest{Model: "gpt-4", Messages: []Message{{}}, Temperature: 2.1},
+			wantErr: true,
+			errMsg:  "temperature must be in [0, 2]",
+		},
+		{
+			name:    "temperature_boundary_zero",
+			req:     &MessageRequest{Model: "gpt-4", Messages: []Message{{}}, Temperature: 0},
+			wantErr: false,
+		},
+		{
+			name:    "temperature_boundary_two",
+			req:     &MessageRequest{Model: "gpt-4", Messages: []Message{{}}, Temperature: 2},
+			wantErr: false,
+		},
+		{
+			name:    "negative_top_p",
+			req:     &MessageRequest{Model: "gpt-4", Messages: []Message{{}}, TopP: -0.1},
+			wantErr: true,
+			errMsg:  "top_p must be in [0, 1]",
+		},
+		{
+			name:    "top_p_too_high",
+			req:     &MessageRequest{Model: "gpt-4", Messages: []Message{{}}, TopP: 1.1},
+			wantErr: true,
+			errMsg:  "top_p must be in [0, 1]",
+		},
+		{
+			name:    "negative_max_tokens",
+			req:     &MessageRequest{Model: "gpt-4", Messages: []Message{{}}, MaxTokens: -1},
+			wantErr: true,
+			errMsg:  "max_tokens must be non-negative",
+		},
+		{
+			name:    "valid_request",
+			req:     &MessageRequest{Model: "gpt-4", Messages: []Message{{Role: "user", Content: []Content{TextContent("hi")}}}},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.req.Validate()
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error containing %q, got nil", tt.errMsg)
+				} else if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("error %q should contain %q", err.Error(), tt.errMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error, got %v", err)
+				}
+			}
+		})
+	}
+}
+func FuzzParseRequest(f *testing.F) {
+	f.Add([]byte(`{"model":"gpt-4","messages":[]}`))
+	f.Add([]byte(`{}`))
+	f.Add([]byte(``))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// Should not panic
+		req, err := ParseRequest(data)
+		_ = req
+		_ = err
+	})
+}
+
+func FuzzParseResponse(f *testing.F) {
+	f.Add([]byte(`{"id":"test","choices":[],"usage":{}}`))
+	f.Add([]byte(`{}`))
+	f.Add([]byte(``))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// Should not panic
+		resp, err := ParseResponse(data)
+		_ = resp
+		_ = err
+	})
 }

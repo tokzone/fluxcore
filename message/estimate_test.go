@@ -1,6 +1,7 @@
 package message
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -133,6 +134,39 @@ func TestEstimateTokensChineseBoundaries(t *testing.T) {
 		result := EstimateTokens(content)
 		if result < 5 {
 			t.Errorf("expected at least 5 tokens, got %d", result)
+		}
+	})
+}
+func FuzzEstimateTokens(f *testing.F) {
+	// Seed corpus
+	f.Add("hello world")
+	f.Add("你好世界")
+	f.Add("")
+	f.Add("a")
+
+	f.Fuzz(func(t *testing.T, input string) {
+		result := EstimateTokens(input)
+		if result < 0 {
+			t.Errorf("negative token count: %d", result)
+		}
+		// Result should be reasonable (not more than len(input) + some overhead)
+		maxReasonable := len(input) + 100
+		if result > maxReasonable {
+			t.Errorf("token count %d seems too high for input length %d", result, len(input))
+		}
+	})
+}
+
+func FuzzEstimateTokensFromMessages(f *testing.F) {
+	f.Add([]byte(`[{"role":"user","content":[{"type":"text","data":"hello"}]}]`))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// This should not panic
+		var msgs []Message
+		_ = json.Unmarshal(data, &msgs)
+		result := EstimateTokensFromMessages(msgs)
+		if result < 0 {
+			t.Errorf("negative token count: %d", result)
 		}
 	})
 }

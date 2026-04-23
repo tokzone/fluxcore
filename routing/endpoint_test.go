@@ -3,6 +3,7 @@ package routing
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEndpointValidate(t *testing.T) {
@@ -145,5 +146,118 @@ func TestIsPrivateIP(t *testing.T) {
 				t.Errorf("IsPrivateIP(%s) = %v, expected %v", tt.host, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestUpdateLatency(t *testing.T) {
+	key := &Key{
+		BaseURL:  "https://api.example.com",
+		APIKey:   "test-key",
+		Protocol: ProtocolOpenAI,
+	}
+	ep, err := NewEndpoint(1, key, "gpt-4", 1000)
+	if err != nil {
+		t.Fatalf("NewEndpoint: %v", err)
+	}
+
+	// First measurement should be stored directly
+	ep.UpdateLatency(100)
+	if ep.LatencyEWMA() != 100 {
+		t.Errorf("LatencyEWMA() = %d, want 100", ep.LatencyEWMA())
+	}
+
+	// Second measurement: EWMA = 0.1 * 200 + 0.9 * 100 = 110
+	ep.UpdateLatency(200)
+	if ep.LatencyEWMA() != 110 {
+		t.Errorf("LatencyEWMA() = %d, want 110", ep.LatencyEWMA())
+	}
+
+	// Third measurement: EWMA = 0.1 * 300 + 0.9 * 110 = 129
+	ep.UpdateLatency(300)
+	if ep.LatencyEWMA() != 129 {
+		t.Errorf("LatencyEWMA() = %d, want 129", ep.LatencyEWMA())
+	}
+}
+
+func TestLatencyEWMAConcurrent(t *testing.T) {
+	key := &Key{
+		BaseURL:  "https://api.example.com",
+		APIKey:   "test-key",
+		Protocol: ProtocolOpenAI,
+	}
+	ep, err := NewEndpoint(1, key, "gpt-4", 1000)
+	if err != nil {
+		t.Fatalf("NewEndpoint: %v", err)
+	}
+
+	// Concurrent updates
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func() {
+			for j := 0; j < 100; j++ {
+				ep.UpdateLatency(j)
+			}
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Just verify no panic and value is reasonable
+	latency := ep.LatencyEWMA()
+	if latency < 0 || latency > 1000 {
+		t.Errorf("LatencyEWMA() = %d, want 0-1000", latency)
+	}
+}
+
+func TestNewEndpointSuccess(t *testing.T) {
+	key := &Key{BaseURL: "https://api.example.com", APIKey: "key", Protocol: ProtocolOpenAI}
+	ep, err := NewEndpoint(1, key, "", 100)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ep.ID != 1 {
+		t.Errorf("expected ID 1, got %d", ep.ID)
+	}
+	if ep.Priority != 100 {
+		t.Errorf("expected Priority 100, got %d", ep.Priority)
+	}
+}
+
+func TestNewEndpointNilKey(t *testing.T) {
+	ep, err := NewEndpoint(1, nil, "", 0)
+	if err != ErrNilKey {
+		t.Errorf("expected ErrNilKey, got %v", err)
+	}
+	if ep != nil {
+		t.Errorf("expected nil endpoint, got %v", ep)
+	}
+}
+
+func TestNewEndpointWithConfig(t *testing.T) {
+	key := &Key{BaseURL: "https://api.example.com", APIKey: "key", Protocol: ProtocolOpenAI}
+	cbConfig := CircuitBreakerConfig{
+		Threshold:       5,
+		RecoveryTimeout: 30 * time.Second,
+	}
+	ep, err := NewEndpointWithConfig(1, key, "", 100, cbConfig)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Verify circuit breaker config is applied
+	if ep.IsCircuitBreakerOpen() {
+		t.Error("endpoint should be healthy initially")
+	}
+}
+
+func TestEndpointSetPriority(t *testing.T) {
+	key := &Key{BaseURL: "https://api.example.com", APIKey: "key", Protocol: ProtocolOpenAI}
+	ep, _ := NewEndpoint(1, key, "", 100)
+	ep.SetPriority(200)
+	if ep.Priority != 200 {
+		t.Errorf("expected Priority 200, got %d", ep.Priority)
 	}
 }

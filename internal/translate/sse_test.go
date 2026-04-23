@@ -254,3 +254,41 @@ func TestParseSSEContextCancellation(t *testing.T) {
 		}
 	}
 }
+
+func TestSSEConfig(t *testing.T) {
+	original := GetSSEConfig()
+	defer SetSSEConfig(&original)
+
+	SetSSEConfig(&SSEConfig{
+		BufferSize:    8192,
+		ChannelBuffer: 200,
+	})
+
+	cfg := GetSSEConfig()
+	if cfg.BufferSize != 8192 {
+		t.Errorf("expected BufferSize 8192, got %d", cfg.BufferSize)
+	}
+	if cfg.ChannelBuffer != 200 {
+		t.Errorf("expected ChannelBuffer 200, got %d", cfg.ChannelBuffer)
+	}
+}
+
+func TestSSEBufferSizeFunc(t *testing.T) {
+	original := GetSSEConfig()
+	defer SetSSEConfig(&original)
+
+	SetSSEConfig(&SSEConfig{BufferSize: 8192})
+	if SSEBufferSize() != 8192 {
+		t.Errorf("expected 8192, got %d", SSEBufferSize())
+	}
+}
+
+func TestSSEChannelBufferFunc(t *testing.T) {
+	original := GetSSEConfig()
+	defer SetSSEConfig(&original)
+
+	SetSSEConfig(&SSEConfig{ChannelBuffer: 200})
+	if SSEChannelBuffer() != 200 {
+		t.Errorf("expected 200, got %d", SSEChannelBuffer())
+	}
+}
