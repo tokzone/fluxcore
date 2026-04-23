@@ -71,9 +71,21 @@ func GetSSEConfig() SSEConfig {
 	return sseConfig
 }
 
-// SSEBufferSize and SSEChannelBuffer are kept for backward compatibility.
-var SSEBufferSize = sseConfig.BufferSize
-var SSEChannelBuffer = sseConfig.ChannelBuffer
+// SSEBufferSize returns the current buffer size.
+// Deprecated: Use GetSSEConfig().BufferSize instead.
+func SSEBufferSize() int {
+	sseConfigMu.RLock()
+	defer sseConfigMu.RUnlock()
+	return sseConfig.BufferSize
+}
+
+// SSEChannelBuffer returns the current channel buffer size.
+// Deprecated: Use GetSSEConfig().ChannelBuffer instead.
+func SSEChannelBuffer() int {
+	sseConfigMu.RLock()
+	defer sseConfigMu.RUnlock()
+	return sseConfig.ChannelBuffer
+}
 
 type SSEEvent struct {
 	Type   string            // SSETypeData, SSETypeEvent, SSETypeDone, SSETypeError

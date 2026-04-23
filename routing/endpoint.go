@@ -40,6 +40,7 @@ type endpointState struct {
 	lastFailNanos atomic.Int64  // Last failure time as Unix nanoseconds
 	threshold     atomic.Int32  // Circuit breaker threshold
 	recoveryNanos atomic.Int64  // Recovery timeout in nanoseconds
+	latencyEWMA   atomic.Int64  // EWMA latency in milliseconds (scaled by 1000 for precision)
 }
 
 // Endpoint is the routing unit - a Key + Model combination.
@@ -152,6 +153,31 @@ func (ep *Endpoint) failCount() int32 {
 // setLastFail sets the last failure time (for tests).
 func (ep *Endpoint) setLastFail(t time.Time) {
 	ep.state.lastFailNanos.Store(t.UnixNano())
+}
+
+// UpdateLatency updates the EWMA latency with a new measurement.
+// EWMA formula: new = α * current + (1-α) * old, where α = 0.1
+func (ep *Endpoint) UpdateLatency(latencyMs int) {
+	const alpha = 0.1
+	const scale = 1000 // Scale for precision
+
+	newLatency := int64(latencyMs * scale)
+	oldLatency := ep.state.latencyEWMA.Load()
+
+	if oldLatency == 0 {
+		// First measurement
+		ep.state.latencyEWMA.Store(newLatency)
+	} else {
+		// EWMA update
+		updated := int64(alpha*float64(newLatency) + (1-alpha)*float64(oldLatency))
+		ep.state.latencyEWMA.Store(updated)
+	}
+}
+
+// LatencyEWMA returns the EWMA latency in milliseconds.
+func (ep *Endpoint) LatencyEWMA() int {
+	const scale = 1000
+	return int(ep.state.latencyEWMA.Load() / scale)
 }
 
 // Validate checks endpoint configuration for errors.

@@ -53,7 +53,7 @@ func TestCallWithUnhealthyEndpoint(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ep := routing.NewEndpoint(1, &routing.Key{BaseURL: server.URL, APIKey: "key", Protocol: routing.ProtocolOpenAI}, "", 0.01, 0)
+	ep, _ := routing.NewEndpoint(1, &routing.Key{BaseURL: server.URL, APIKey: "key", Protocol: routing.ProtocolOpenAI}, "", 0)
 	// Mark as unhealthy by triggering circuit breaker (3 failures)
 	for i := 0; i < 3; i++ {
 		ep.MarkFail()

@@ -59,7 +59,7 @@ func TestRequestWithGeminiEndpoint(t *testing.T) {
 	defer server.Close()
 
 	key := &routing.Key{BaseURL: server.URL, APIKey: "key", Protocol: routing.ProtocolGemini}
-	ep := routing.NewEndpoint(1, key, "gemini-pro", 0.001, 0.002)
+	ep, _ := routing.NewEndpoint(1, key, "gemini-pro", 0)
 	pool := routing.NewEndpointPool([]*routing.Endpoint{ep}, 2)
 
 	ctx := context.Background()
@@ -101,7 +101,7 @@ func TestRequestGeminiResponseParseError(t *testing.T) {
 	defer server.Close()
 
 	key := &routing.Key{BaseURL: server.URL, APIKey: "key", Protocol: routing.ProtocolGemini}
-	ep := routing.NewEndpoint(1, key, "gemini-pro", 0.001, 0.001)
+	ep, _ := routing.NewEndpoint(1, key, "gemini-pro", 0)
 	pool := routing.NewEndpointPool([]*routing.Endpoint{ep}, 2)
 
 	ctx := context.Background()

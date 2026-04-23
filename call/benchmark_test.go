@@ -145,7 +145,7 @@ func BenchmarkTransport(b *testing.B) {
 	}))
 	defer server.Close()
 
-	ep := routing.NewEndpoint(1, &routing.Key{BaseURL: server.URL, APIKey: "key", Protocol: routing.ProtocolOpenAI}, "", 0.01, 0)
+	ep, _ := routing.NewEndpoint(1, &routing.Key{BaseURL: server.URL, APIKey: "key", Protocol: routing.ProtocolOpenAI}, "", 0)
 
 	body := []byte(`{"model":"gpt-4","messages":[]}`)
 	ctx := context.Background()
@@ -163,7 +163,7 @@ func BenchmarkCallWithParsedRequest(b *testing.B) {
 	}))
 	defer server.Close()
 
-	ep := routing.NewEndpoint(1, &routing.Key{BaseURL: server.URL, APIKey: "key", Protocol: routing.ProtocolOpenAI}, "", 0.01, 0)
+	ep, _ := routing.NewEndpoint(1, &routing.Key{BaseURL: server.URL, APIKey: "key", Protocol: routing.ProtocolOpenAI}, "", 0)
 
 	req := &message.MessageRequest{
 		Model:    "gpt-4",
@@ -184,7 +184,7 @@ func BenchmarkRequestNoRetry(b *testing.B) {
 	}))
 	defer server.Close()
 
-	ep := routing.NewEndpoint(1, &routing.Key{BaseURL: server.URL, APIKey: "key", Protocol: routing.ProtocolOpenAI}, "", 0.01, 0)
+	ep, _ := routing.NewEndpoint(1, &routing.Key{BaseURL: server.URL, APIKey: "key", Protocol: routing.ProtocolOpenAI}, "", 0)
 
 	pool := routing.NewEndpointPool([]*routing.Endpoint{ep}, 0)
 

@@ -104,7 +104,7 @@ func Request(ctx context.Context, pool *routing.EndpointPool, rawReq []byte, inp
 }
 
 func transport(ctx context.Context, ep *routing.Endpoint, body []byte) ([]byte, error) {
-	// If ctx has no deadline, add default timeout
+	// Ensure requests have a deadline for timeout control
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, DefaultTimeout)

@@ -15,7 +15,13 @@ func compareEndpoint(a, b *Endpoint) int {
 	if a.Priority != b.Priority {
 		return int(a.Priority - b.Priority)
 	}
-	// Same priority: compare by latency (lower is better)
+	// Same priority: compare by EWMA latency (lower is better)
+	aLatency := a.LatencyEWMA()
+	bLatency := b.LatencyEWMA()
+	if aLatency != bLatency {
+		return aLatency - bLatency
+	}
+	// Fallback to static latency
 	return a.LatencyMs - b.LatencyMs
 }
 
