@@ -3,6 +3,7 @@ package routing
 import "testing"
 
 func TestProtocolString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		protocol Protocol
 		expected string

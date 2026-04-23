@@ -150,6 +150,7 @@ func TestIsPrivateIP(t *testing.T) {
 }
 
 func TestUpdateLatency(t *testing.T) {
+	t.Parallel()
 	key := &Key{
 		BaseURL:  "https://api.example.com",
 		APIKey:   "test-key",
@@ -214,6 +215,7 @@ func TestLatencyEWMAConcurrent(t *testing.T) {
 }
 
 func TestNewEndpointSuccess(t *testing.T) {
+	t.Parallel()
 	key := &Key{BaseURL: "https://api.example.com", APIKey: "key", Protocol: ProtocolOpenAI}
 	ep, err := NewEndpoint(1, key, "", 100)
 	if err != nil {
@@ -228,6 +230,7 @@ func TestNewEndpointSuccess(t *testing.T) {
 }
 
 func TestNewEndpointNilKey(t *testing.T) {
+	t.Parallel()
 	ep, err := NewEndpoint(1, nil, "", 0)
 	if err != ErrNilKey {
 		t.Errorf("expected ErrNilKey, got %v", err)
@@ -238,6 +241,7 @@ func TestNewEndpointNilKey(t *testing.T) {
 }
 
 func TestNewEndpointWithConfig(t *testing.T) {
+	t.Parallel()
 	key := &Key{BaseURL: "https://api.example.com", APIKey: "key", Protocol: ProtocolOpenAI}
 	cbConfig := CircuitBreakerConfig{
 		Threshold:       5,
@@ -254,6 +258,7 @@ func TestNewEndpointWithConfig(t *testing.T) {
 }
 
 func TestEndpointSetPriority(t *testing.T) {
+	t.Parallel()
 	key := &Key{BaseURL: "https://api.example.com", APIKey: "key", Protocol: ProtocolOpenAI}
 	ep, _ := NewEndpoint(1, key, "", 100)
 	ep.SetPriority(200)

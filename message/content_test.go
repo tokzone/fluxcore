@@ -3,6 +3,7 @@ package message
 import "testing"
 
 func TestContentIsText(t *testing.T) {
+	t.Parallel()
 	textContent := TextContent("hello")
 	if !textContent.IsText() {
 		t.Error("TextContent should return true for IsText()")
@@ -20,6 +21,7 @@ func TestContentIsText(t *testing.T) {
 }
 
 func TestContentIsMedia(t *testing.T) {
+	t.Parallel()
 	textContent := TextContent("hello")
 	if textContent.IsMedia() {
 		t.Error("TextContent should return false for IsMedia()")
@@ -37,6 +39,7 @@ func TestContentIsMedia(t *testing.T) {
 }
 
 func TestExtractAllText(t *testing.T) {
+	t.Parallel()
 	contents := []Content{
 		TextContent("Hello"),
 		TextContent(" "),
@@ -52,6 +55,7 @@ func TestExtractAllText(t *testing.T) {
 }
 
 func TestExtractAllTextEmpty(t *testing.T) {
+	t.Parallel()
 	result := ExtractAllText([]Content{})
 	if result != "" {
 		t.Errorf("expected empty string, got %q", result)
@@ -59,6 +63,7 @@ func TestExtractAllTextEmpty(t *testing.T) {
 }
 
 func TestForEachText(t *testing.T) {
+	t.Parallel()
 	contents := []Content{
 		TextContent("Hello"),
 		TextContent("World"),
@@ -79,6 +84,7 @@ func TestForEachText(t *testing.T) {
 }
 
 func TestForEachTextEmpty(t *testing.T) {
+	t.Parallel()
 	called := false
 	ForEachText([]Content{}, func(text string) {
 		called = true
