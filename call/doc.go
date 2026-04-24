@@ -10,7 +10,6 @@
 // Main entry points:
 //   - Request: Non-streaming chat completion request
 //   - RequestStream: Streaming chat completion request
-//   - SetConfig: Configure HTTP client settings
 //
 // Example usage:
 //

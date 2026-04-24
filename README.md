@@ -116,16 +116,6 @@ if ep.IsCircuitBreakerOpen() {
 }
 ```
 
-### Custom Config
-
-```go
-// Custom: 5 failures trigger circuit, 30s recovery timeout
-ep := routing.NewEndpointWithConfig(id, key, model, inputPrice, outputPrice, routing.CircuitBreakerConfig{
-    Threshold:       5,                // Failures before circuit opens
-    RecoveryTimeout: 30 * time.Second, // Time before retrying unhealthy endpoint
-})
-```
-
 ### API Reference
 
 | Method | Description |
@@ -249,10 +239,7 @@ if err := ep.Validate(); err != nil {
 }
 
 // Step 2: SSRF 防护（可选，你的策略）
-u, _ := url.Parse(ep.BaseURL)
-if routing.IsPrivateIP(u.Hostname()) {
-    return errors.New("private IPs not allowed")  // 你的策略
-}
+// Implement your own IP validation strategy
 ```
 
 ---
@@ -458,15 +445,6 @@ if ep.IsCircuitBreakerOpen() {
 }
 ```
 
-**自定义配置：**
-```go
-// 自定义：5次失败触发熔断，30秒恢复超时
-ep := routing.NewEndpointWithConfig(id, key, model, inputPrice, outputPrice, routing.CircuitBreakerConfig{
-    Threshold:       5,                // 触发熔断的失败次数
-    RecoveryTimeout: 30 * time.Second, // 重试不健康端点前的等待时间
-})
-```
-
 ---
 
 ### 智能错误分类
@@ -564,10 +542,7 @@ if err := ep.Validate(); err != nil {
 }
 
 // Step 2: SSRF 防护（可选，你的策略）
-u, _ := url.Parse(ep.BaseURL)
-if routing.IsPrivateIP(u.Hostname()) {
-    return errors.New("私有 IP 不允许")  // 你的策略
-}
+// 实现你自己的 IP 验证策略
 ```
 
 ---

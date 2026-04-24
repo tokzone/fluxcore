@@ -40,9 +40,6 @@ var sharedClient = &http.Client{
 
 // SetConfig configures the HTTP client with custom settings.
 // Must be called before any requests are made.
-// Example:
-//
-//	call.SetConfig(&call.Config{Timeout: 60 * time.Second})
 func SetConfig(cfg *Config) {
 	if cfg == nil {
 		return
