@@ -196,7 +196,7 @@ func callStreamWithParsedRequest(ctx context.Context, ep *routing.Endpoint, req 
 }
 
 func streamTransport(ctx context.Context, ep *routing.Endpoint, body []byte) (io.ReadCloser, context.CancelFunc, error) {
-	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", buildURL(ep, true), bytes.NewReader(body))
 	if err != nil {
@@ -213,7 +213,7 @@ func streamTransport(ctx context.Context, ep *routing.Endpoint, body []byte) (io
 
 	if resp.StatusCode >= 400 {
 		cancel()
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, DefaultErrorBodyLimit))
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, defaultErrorBodyLimit))
 		resp.Body.Close()
 		return nil, nil, errors.ClassifyHTTPError(resp.StatusCode, string(respBody))
 	}

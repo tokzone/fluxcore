@@ -13,45 +13,22 @@ import (
 	"github.com/tokzone/fluxcore/routing"
 )
 
-// DefaultTimeout is the default HTTP request timeout.
-const DefaultTimeout = 30 * time.Second
+const defaultTimeout = 30 * time.Second
 
 const (
-	DefaultMaxIdleConns        = 100
-	DefaultMaxIdleConnsPerHost = 10
-	DefaultIdleConnTimeout     = 90 * time.Second
-	DefaultErrorBodyLimit      = 4096
+	defaultMaxIdleConns        = 100
+	defaultMaxIdleConnsPerHost = 10
+	defaultIdleConnTimeout     = 90 * time.Second
+	defaultErrorBodyLimit      = 4096
 )
 
-// Config holds configuration for the HTTP client.
-// Zero values use defaults (Timeout=30s).
-type Config struct {
-	Timeout time.Duration // HTTP request timeout (default: 30s)
-}
-
 var sharedClient = &http.Client{
-	Timeout: DefaultTimeout,
+	Timeout: defaultTimeout,
 	Transport: &http.Transport{
-		MaxIdleConns:        DefaultMaxIdleConns,
-		MaxIdleConnsPerHost: DefaultMaxIdleConnsPerHost,
-		IdleConnTimeout:     DefaultIdleConnTimeout,
+		MaxIdleConns:        defaultMaxIdleConns,
+		MaxIdleConnsPerHost: defaultMaxIdleConnsPerHost,
+		IdleConnTimeout:     defaultIdleConnTimeout,
 	},
-}
-
-// SetConfig configures the HTTP client with custom settings.
-// Must be called before any requests are made.
-// Example:
-//
-//	call.SetConfig(&call.Config{Timeout: 60 * time.Second})
-func SetConfig(cfg *Config) {
-	if cfg == nil {
-		return
-	}
-	timeout := cfg.Timeout
-	if timeout <= 0 {
-		timeout = DefaultTimeout
-	}
-	sharedClient.Timeout = timeout
 }
 
 
@@ -107,7 +84,7 @@ func transport(ctx context.Context, ep *routing.Endpoint, body []byte) ([]byte, 
 	// Ensure requests have a deadline for timeout control
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, DefaultTimeout)
+		ctx, cancel = context.WithTimeout(ctx, defaultTimeout)
 		defer cancel()
 	}
 
@@ -124,7 +101,7 @@ func transport(ctx context.Context, ep *routing.Endpoint, body []byte) ([]byte, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, DefaultErrorBodyLimit))
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, defaultErrorBodyLimit))
 		return nil, errors.ClassifyHTTPError(resp.StatusCode, string(respBody))
 	}
 
