@@ -197,7 +197,7 @@ func TestIsCircuitBreakerOpenRecoveryTimeout(t *testing.T) {
 
 	t.Run("old_fail_can_retry", func(t *testing.T) {
 		ep := newTestEndpoint(1, false)
-		ep.setLastFail(time.Now().Add(-2 * DefaultRecoveryTimeout)) // Old failure
+		ep.setLastFail(time.Now().Add(-2 * time.Minute)) // Old failure (2x default 60s timeout)
 
 		// Should NOT skip (past recovery timeout)
 		if ep.IsCircuitBreakerOpen() {
@@ -230,8 +230,8 @@ func TestPoolMarkSuccessResetsHealth(t *testing.T) {
 		ep := newTestEndpoint(1, true)
 		pool := NewEndpointPool([]*Endpoint{ep}, 2)
 
-		// Fail it
-		for i := 0; i < DefaultCircuitBreakerThreshold; i++ {
+		// Fail it (default threshold is 3)
+		for i := 0; i < 3; i++ {
 			pool.MarkFail(ep)
 		}
 
