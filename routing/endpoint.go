@@ -3,7 +3,6 @@ package routing
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
 	"sync/atomic"
 	"time"
@@ -11,24 +10,24 @@ import (
 
 // Default circuit breaker settings
 const (
-	DefaultCircuitBreakerThreshold = 3               // Failures before circuit breaker opens
-	DefaultRecoveryTimeout         = 60 * time.Second // Time before retrying unhealthy endpoint
+	defaultCircuitBreakerThreshold = 3                // Failures before circuit breaker opens
+	defaultRecoveryTimeout         = 60 * time.Second // Time before retrying unhealthy endpoint
 )
 
-// CircuitBreakerConfig holds circuit breaker configuration.
+// circuitBreakerConfig holds circuit breaker configuration.
 // Zero values use defaults (Threshold=3, RecoveryTimeout=60s).
-type CircuitBreakerConfig struct {
-	Threshold      int           // Failures before circuit breaker opens (default: 3)
+type circuitBreakerConfig struct {
+	Threshold       int           // Failures before circuit breaker opens (default: 3)
 	RecoveryTimeout time.Duration // Time before retrying unhealthy endpoint (default: 60s)
 }
 
 // defaults returns config with zero values replaced by defaults.
-func (c CircuitBreakerConfig) defaults() CircuitBreakerConfig {
+func (c circuitBreakerConfig) defaults() circuitBreakerConfig {
 	if c.Threshold <= 0 {
-		c.Threshold = DefaultCircuitBreakerThreshold
+		c.Threshold = defaultCircuitBreakerThreshold
 	}
 	if c.RecoveryTimeout <= 0 {
-		c.RecoveryTimeout = DefaultRecoveryTimeout
+		c.RecoveryTimeout = defaultRecoveryTimeout
 	}
 	return c
 }
@@ -58,25 +57,25 @@ type Endpoint struct {
 	state *endpointState
 }
 
-// ErrNilKey is returned when attempting to create an endpoint with nil key.
-var ErrNilKey = errors.New("endpoint Key cannot be nil")
+// errNilKey is returned when attempting to create an endpoint with nil key.
+var errNilKey = errors.New("endpoint Key cannot be nil")
 
 // NewEndpoint creates a new endpoint with default healthy status and default circuit breaker config.
 // The model parameter is required for Gemini (used in URL construction like /v1/models/{model}:generateContent).
 // For OpenAI, Anthropic, and Cohere, pass empty string "" - the model is taken from the request body.
-// Returns ErrNilKey if key is nil.
+// Returns errNilKey if key is nil.
 func NewEndpoint(id uint, key *Key, model string, priority int64) (*Endpoint, error) {
 	if key == nil {
-		return nil, ErrNilKey
+		return nil, errNilKey
 	}
-	return NewEndpointWithConfig(id, key, model, priority, CircuitBreakerConfig{})
+	return newEndpointWithConfig(id, key, model, priority, circuitBreakerConfig{})
 }
 
-// NewEndpointWithConfig creates a new endpoint with custom circuit breaker configuration.
-// Returns ErrNilKey if key is nil.
-func NewEndpointWithConfig(id uint, key *Key, model string, priority int64, cbConfig CircuitBreakerConfig) (*Endpoint, error) {
+// newEndpointWithConfig creates a new endpoint with custom circuit breaker configuration.
+// Returns errNilKey if key is nil.
+func newEndpointWithConfig(id uint, key *Key, model string, priority int64, cbConfig circuitBreakerConfig) (*Endpoint, error) {
 	if key == nil {
-		return nil, ErrNilKey
+		return nil, errNilKey
 	}
 	cfg := cbConfig.defaults()
 	ep := &Endpoint{
@@ -107,7 +106,7 @@ func (ep *Endpoint) IsCircuitBreakerOpen() bool {
 		}
 		recoveryNanos := ep.state.recoveryNanos.Load()
 		if recoveryNanos <= 0 {
-			recoveryNanos = DefaultRecoveryTimeout.Nanoseconds()
+			recoveryNanos = defaultRecoveryTimeout.Nanoseconds()
 		}
 		lastFail := time.Unix(0, lastFailNanos)
 		return time.Since(lastFail) <= time.Duration(recoveryNanos)
@@ -127,7 +126,7 @@ func (ep *Endpoint) MarkFail() {
 	failCount := ep.state.failCount.Add(1)
 	threshold := ep.state.threshold.Load()
 	if threshold <= 0 {
-		threshold = DefaultCircuitBreakerThreshold
+		threshold = defaultCircuitBreakerThreshold
 	}
 	if failCount >= threshold {
 		ep.state.healthy.Store(false)
@@ -181,7 +180,6 @@ func (ep *Endpoint) LatencyEWMA() int {
 }
 
 // Validate checks endpoint configuration for errors.
-// Note: SSRF protection is NOT enforced here - use IsPrivateIP() in application layer.
 func (ep *Endpoint) Validate() error {
 	// Key validation
 	if ep.Key == nil {
@@ -216,26 +214,4 @@ func (ep *Endpoint) Validate() error {
 	}
 
 	return nil
-}
-
-// specialHosts are hostname strings that should be treated as private
-var specialHosts = []string{"localhost", "0.0.0.0"}
-
-// IsPrivateIP checks if hostname points to a private/internal IP address.
-// Application layer should call this to implement SSRF protection based on their security policy.
-func IsPrivateIP(host string) bool {
-	for _, h := range specialHosts {
-		if host == h {
-			return true
-		}
-	}
-
-	// Try parsing as IP address directly
-	ip := net.ParseIP(host)
-	if ip != nil {
-		return ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast()
-	}
-
-	// Not a valid IP address - application layer should handle DNS resolution if needed
-	return false
 }
