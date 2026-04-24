@@ -31,9 +31,7 @@
 //	    MaxTokens: 100,
 //	}
 //
-// Builder methods:
+// Builder method:
 //
 //	req = req.WithStream(true)
-//	req = req.WithModel("gpt-3.5-turbo")
-//	cloned := req.Clone()
 package message
