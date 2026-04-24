@@ -233,8 +233,8 @@ func MessageResponseToAnthropic(resp *message.MessageResponse) ([]byte, error) {
 	return json.Marshal(raw)
 }
 
-// AnthropicSSEChunk represents Anthropic SSE event
-type AnthropicSSEChunk struct {
+// anthropicSSEChunk represents Anthropic SSE event
+type anthropicSSEChunk struct {
 	Type    string                 `json:"type"`
 	Index   int                    `json:"index,omitempty"`
 	Message map[string]interface{} `json:"message,omitempty"`
@@ -253,7 +253,7 @@ func OpenAISSEToAnthropicSSE(chunk *message.StreamChunk) []string {
 
 	// message_start
 	if choice.Delta.Role != "" {
-		event := AnthropicSSEChunk{
+		event := anthropicSSEChunk{
 			Type: "message_start",
 			Message: map[string]interface{}{
 				"id":    chunk.ID,
@@ -274,7 +274,7 @@ func OpenAISSEToAnthropicSSE(chunk *message.StreamChunk) []string {
 			}
 		}
 		if text != "" {
-			event := AnthropicSSEChunk{
+			event := anthropicSSEChunk{
 				Type:  "content_block_delta",
 				Index: choice.Index,
 				Delta: map[string]interface{}{
@@ -289,7 +289,7 @@ func OpenAISSEToAnthropicSSE(chunk *message.StreamChunk) []string {
 
 	// message_delta
 	if choice.FinishReason != nil {
-		event := AnthropicSSEChunk{
+		event := anthropicSSEChunk{
 			Type: "message_delta",
 			Delta: map[string]interface{}{
 				"stop_reason": *choice.FinishReason,
@@ -309,7 +309,7 @@ func OpenAISSEToAnthropicSSE(chunk *message.StreamChunk) []string {
 
 // AnthropicSSEToOpenAISSE converts Anthropic SSE line to OpenAI SSE format
 func AnthropicSSEToOpenAISSE(line []byte) []byte {
-	var event AnthropicSSEChunk
+	var event anthropicSSEChunk
 	if err := json.Unmarshal(line, &event); err != nil {
 		return nil
 	}
