@@ -16,7 +16,7 @@ import (
 	"github.com/tokzone/fluxcore/internal/translate"
 )
 
-const DefaultWrappedChannelBuffer = 100
+const defaultWrappedChannelBuffer = 100
 
 // atomicUsage provides thread-safe access to usage statistics.
 type atomicUsage struct {
@@ -86,7 +86,7 @@ func RequestStream(ctx context.Context, pool *routing.EndpointPool, rawReq []byt
 
 		result, err := callStreamWithParsedRequest(ctx, ep, req, inputProtocol)
 		if err == nil {
-			wrappedCh := make(chan []byte, DefaultWrappedChannelBuffer)
+			wrappedCh := make(chan []byte, defaultWrappedChannelBuffer)
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {

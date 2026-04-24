@@ -34,12 +34,12 @@ func (c circuitBreakerConfig) defaults() circuitBreakerConfig {
 
 // endpointState holds runtime health state for an Endpoint (internal).
 type endpointState struct {
-	failCount     atomic.Int32  // Consecutive failure count
-	healthy       atomic.Bool   // Health status
-	lastFailNanos atomic.Int64  // Last failure time as Unix nanoseconds
-	threshold     atomic.Int32  // Circuit breaker threshold
-	recoveryNanos atomic.Int64  // Recovery timeout in nanoseconds
-	latencyEWMA   atomic.Int64  // EWMA latency in milliseconds (scaled by 1000 for precision)
+	failCount     atomic.Int32
+	healthy       atomic.Bool
+	lastFailNanos atomic.Int64
+	threshold     atomic.Int32
+	recoveryNanos atomic.Int64
+	latencyEWMA   atomic.Int64 // scaled by 1000 for precision
 }
 
 // Endpoint is the routing unit - a Key + Model combination.
