@@ -83,22 +83,6 @@ func TextContent(text string) Content {
 	}
 }
 
-// ImageContent creates image content
-func ImageContent(url, mediaType, base64 string) Content {
-	return Content{
-		Type: "image",
-		Data: MediaData{URL: url, MediaType: mediaType, Base64: base64},
-	}
-}
-
-// AudioContent creates audio content
-func AudioContent(url, mediaType, base64 string) Content {
-	return Content{
-		Type: "audio",
-		Data: MediaData{URL: url, MediaType: mediaType, Base64: base64},
-	}
-}
-
 // AsText returns the text if this is TextData, otherwise empty string.
 func (c Content) AsText() string {
 	if td, ok := c.Data.(TextData); ok {
@@ -107,22 +91,9 @@ func (c Content) AsText() string {
 	return ""
 }
 
-// AsMedia returns the media data if this is MediaData, otherwise nil.
-func (c Content) AsMedia() *MediaData {
-	if media, ok := c.Data.(MediaData); ok {
-		return &media
-	}
-	return nil
-}
-
 // IsText returns true if this is text content.
 func (c Content) IsText() bool {
 	return c.Type == "text"
-}
-
-// IsMedia returns true if this is media content (image or audio).
-func (c Content) IsMedia() bool {
-	return c.Type == "image" || c.Type == "audio"
 }
 
 // ExtractAllText concatenates all text from content items.
@@ -136,14 +107,3 @@ func ExtractAllText(contents []Content) string {
 	return sb.String()
 }
 
-// ForEachText iterates over text content items and calls the callback for each.
-// Useful for building provider-specific text parts.
-func ForEachText(contents []Content, fn func(text string)) {
-	for _, c := range contents {
-		if c.IsText() {
-			if text := c.AsText(); text != "" {
-				fn(text)
-			}
-		}
-	}
-}

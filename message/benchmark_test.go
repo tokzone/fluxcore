@@ -45,16 +45,3 @@ func BenchmarkEstimateTokens(b *testing.B) {
 	})
 }
 
-func BenchmarkEstimateTokensFromMessages(b *testing.B) {
-	messages := []Message{
-		{Role: "system", Content: []Content{TextContent("You are a helpful assistant")}},
-		{Role: "user", Content: []Content{TextContent("Hello, how are you?")}},
-		{Role: "assistant", Content: []Content{TextContent("I'm doing well, thank you!")}},
-		{Role: "user", Content: []Content{TextContent("Can you help me with something?")}},
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		EstimateTokensFromMessages(messages)
-	}
-}

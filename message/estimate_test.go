@@ -1,9 +1,6 @@
 package message
 
-import (
-	"encoding/json"
-	"testing"
-)
+import "testing"
 
 func TestEstimateTokens(t *testing.T) {
 	tests := []struct {
@@ -65,48 +62,6 @@ func TestEstimateTokens(t *testing.T) {
 	}
 }
 
-func TestEstimateTokensFromMessages(t *testing.T) {
-	t.Run("basic", func(t *testing.T) {
-		messages := []Message{
-			{Role: "user", Content: []Content{TextContent("Hello world")}},
-			{Role: "assistant", Content: []Content{TextContent("Hi there")}},
-		}
-
-		result := EstimateTokensFromMessages(messages)
-		if result < 5 || result > 25 {
-			t.Errorf("expected ~10-15 tokens (range 5-25), got %d", result)
-		}
-	})
-
-	t.Run("empty_messages", func(t *testing.T) {
-		result := EstimateTokensFromMessages([]Message{})
-		if result != 0 {
-			t.Errorf("expected 0 tokens for empty messages, got %d", result)
-		}
-	})
-
-	t.Run("single_message", func(t *testing.T) {
-		messages := []Message{
-			{Role: "user", Content: []Content{TextContent("Hello")}},
-		}
-		result := EstimateTokensFromMessages(messages)
-		if result < 1 {
-			t.Errorf("expected at least 1 token, got %d", result)
-		}
-	})
-
-	t.Run("non_text_content_skipped", func(t *testing.T) {
-		messages := []Message{
-			{Role: "user", Content: []Content{ImageContent("http://example.com/img.png", "image/png", "")}},
-		}
-		result := EstimateTokensFromMessages(messages)
-		// Should count role token only
-		if result < 1 {
-			t.Errorf("expected at least 1 token for role, got %d", result)
-		}
-	})
-}
-
 func TestEstimateTokensChineseBoundaries(t *testing.T) {
 	t.Run("all_chinese", func(t *testing.T) {
 		// String with all Chinese characters
@@ -157,16 +112,3 @@ func FuzzEstimateTokens(f *testing.F) {
 	})
 }
 
-func FuzzEstimateTokensFromMessages(f *testing.F) {
-	f.Add([]byte(`[{"role":"user","content":[{"type":"text","data":"hello"}]}]`))
-
-	f.Fuzz(func(t *testing.T, data []byte) {
-		// This should not panic
-		var msgs []Message
-		_ = json.Unmarshal(data, &msgs)
-		result := EstimateTokensFromMessages(msgs)
-		if result < 0 {
-			t.Errorf("negative token count: %d", result)
-		}
-	})
-}

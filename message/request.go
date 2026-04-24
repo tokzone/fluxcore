@@ -106,30 +106,3 @@ func (r *MessageRequest) WithStream(stream bool) *MessageRequest {
 	return &newReq
 }
 
-// WithModel returns a copy of the request with Model set to the given value.
-func (r *MessageRequest) WithModel(model string) *MessageRequest {
-	newReq := *r
-	newReq.Model = model
-	return &newReq
-}
-
-// WithMaxTokens returns a copy of the request with MaxTokens set to the given value.
-func (r *MessageRequest) WithMaxTokens(maxTokens int) *MessageRequest {
-	newReq := *r
-	newReq.MaxTokens = maxTokens
-	return &newReq
-}
-
-// Clone returns a deep copy of the request.
-func (r *MessageRequest) Clone() *MessageRequest {
-	newReq := *r
-	newReq.Messages = make([]Message, len(r.Messages))
-	for i, msg := range r.Messages {
-		newReq.Messages[i] = Message{
-			Role:    msg.Role,
-			Content: make([]Content, len(msg.Content)),
-		}
-		copy(newReq.Messages[i].Content, msg.Content)
-	}
-	return &newReq
-}

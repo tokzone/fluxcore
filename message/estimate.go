@@ -21,14 +21,3 @@ func EstimateTokens(content string) int {
 	return chineseCount*2/3 + (totalChars-chineseCount)/4 + 1
 }
 
-// EstimateTokensFromMessages estimates total input tokens from messages
-func EstimateTokensFromMessages(messages []Message) int {
-	total := 0
-	for _, msg := range messages {
-		// Role token
-		total += 1
-		// Content tokens
-		total += EstimateTokens(ExtractAllText(msg.Content))
-	}
-	return total
-}
