@@ -10,13 +10,13 @@ import (
 
 // AnthropicRequest represents Anthropic API request structure
 type AnthropicRequest struct {
-	Model       string          `json:"model"`
-	MaxTokens   int             `json:"max_tokens"`
-	Temperature float64         `json:"temperature,omitempty"`
-	TopP        float64         `json:"top_p,omitempty"`
-	Stream      bool            `json:"stream,omitempty"`
-	System      string          `json:"system,omitempty"`
-	Messages    []AnthropicMsg  `json:"messages"`
+	Model       string         `json:"model"`
+	MaxTokens   int            `json:"max_tokens"`
+	Temperature float64        `json:"temperature,omitempty"`
+	TopP        float64        `json:"top_p,omitempty"`
+	Stream      bool           `json:"stream,omitempty"`
+	System      string         `json:"system,omitempty"`
+	Messages    []AnthropicMsg `json:"messages"`
 }
 
 // AnthropicMsg represents a message in Anthropic format
@@ -104,7 +104,7 @@ func MessageRequestToAnthropic(req *message.MessageRequest) ([]byte, error) {
 	raw := map[string]interface{}{
 		"model":      req.Model,
 		"max_tokens": req.MaxTokens,
-		"stream":      req.Stream,
+		"stream":     req.Stream,
 	}
 
 	if req.Temperature > 0 {
@@ -321,9 +321,9 @@ func AnthropicSSEToOpenAISSE(line []byte) []byte {
 			text = delta
 		}
 		chunk := message.StreamChunk{
-			ID:      "",
-			Object:  "chat.completion.chunk",
-			Model:   "",
+			ID:     "",
+			Object: "chat.completion.chunk",
+			Model:  "",
 			Choices: []message.StreamChoice{
 				{
 					Index: event.Index,
@@ -342,8 +342,8 @@ func AnthropicSSEToOpenAISSE(line []byte) []byte {
 			stopReason = sr
 		}
 		chunk := message.StreamChunk{
-			ID:      "",
-			Object:  "chat.completion.chunk",
+			ID:     "",
+			Object: "chat.completion.chunk",
 			Choices: []message.StreamChoice{
 				{
 					Index:        0,

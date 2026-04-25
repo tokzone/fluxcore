@@ -14,20 +14,20 @@ func init() {
 
 // CohereRequest represents Cohere API request structure
 type CohereRequest struct {
-	Message      string          `json:"message"`
-	ChatHistory  []CohereMessage `json:"chat_history,omitempty"`
-	Preamble     string          `json:"preamble,omitempty"`
-	MaxTokens    int             `json:"max_tokens,omitempty"`
-	Temperature  float64         `json:"temperature,omitempty"`
-	P            float64         `json:"p,omitempty"`
-	K            int             `json:"k,omitempty"`
-	Stream       bool            `json:"stream,omitempty"`
-	Connectors   []interface{}   `json:"connectors,omitempty"`
+	Message     string          `json:"message"`
+	ChatHistory []CohereMessage `json:"chat_history,omitempty"`
+	Preamble    string          `json:"preamble,omitempty"`
+	MaxTokens   int             `json:"max_tokens,omitempty"`
+	Temperature float64         `json:"temperature,omitempty"`
+	P           float64         `json:"p,omitempty"`
+	K           int             `json:"k,omitempty"`
+	Stream      bool            `json:"stream,omitempty"`
+	Connectors  []interface{}   `json:"connectors,omitempty"`
 }
 
 // CohereMessage represents a message in chat history
 type CohereMessage struct {
-	Role    string `json:"role"`    // USER or CHATBOT
+	Role    string `json:"role"` // USER or CHATBOT
 	Message string `json:"message"`
 }
 
@@ -263,8 +263,8 @@ func MessageResponseToCohere(resp *message.MessageResponse) ([]byte, error) {
 	text := sb.String()
 
 	raw := map[string]interface{}{
-		"text":         text,
-		"is_finished":  true,
+		"text":          text,
+		"is_finished":   true,
 		"finish_reason": finishReason,
 	}
 

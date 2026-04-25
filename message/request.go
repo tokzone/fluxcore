@@ -105,4 +105,3 @@ func (r *MessageRequest) WithStream(stream bool) *MessageRequest {
 	newReq.Stream = stream
 	return &newReq
 }
-

@@ -21,11 +21,11 @@ func TestCohereToMessageRequest(t *testing.T) {
 				"message": "Hello!",
 			},
 		},
-		"preamble": "You are a helpful assistant",
-		"max_tokens": 100.0,
+		"preamble":    "You are a helpful assistant",
+		"max_tokens":  100.0,
 		"temperature": 0.7,
-		"p": 0.9,
-		"stream": true,
+		"p":           0.9,
+		"stream":      true,
 	}
 
 	reqBytes, _ := json.Marshal(cohereReq)
@@ -127,8 +127,8 @@ func TestMessageRequestToCohere(t *testing.T) {
 
 func TestCohereResponseToMessageResponse(t *testing.T) {
 	cohereResp := map[string]interface{}{
-		"text": "Hello there! How can I help you?",
-		"is_finished": true,
+		"text":          "Hello there! How can I help you?",
+		"is_finished":   true,
 		"finish_reason": "complete",
 		"meta": map[string]interface{}{
 			"billed_units": map[string]interface{}{
@@ -231,7 +231,7 @@ func TestCohereSSEToOpenAISSE(t *testing.T) {
 	}
 
 	// Parse the converted output
-	dataStr := string(converted[6:]) // skip "data: "
+	dataStr := string(converted[6:])   // skip "data: "
 	dataStr = dataStr[:len(dataStr)-2] // skip "\n\n"
 
 	var chunk message.StreamChunk
@@ -328,7 +328,7 @@ func TestCohereRoundTrip(t *testing.T) {
 				"message": "Hello!",
 			},
 		},
-		"preamble": "Be helpful",
+		"preamble":    "Be helpful",
 		"temperature": 0.5,
 	}
 

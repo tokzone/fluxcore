@@ -15,7 +15,7 @@ func init() {
 // GeminiRequest represents Gemini API request structure
 type GeminiRequest struct {
 	Contents          []GeminiContent         `json:"contents"`
-	SystemInstruction *GeminiContent         `json:"systemInstruction,omitempty"`
+	SystemInstruction *GeminiContent          `json:"systemInstruction,omitempty"`
 	GenerationConfig  *GeminiGenerationConfig `json:"generationConfig,omitempty"`
 	SafetySettings    []GeminiSafetySetting   `json:"safetySettings,omitempty"`
 }

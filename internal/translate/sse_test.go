@@ -134,8 +134,8 @@ func TestConvertSSEEventAnthropicToOpenAI(t *testing.T) {
 
 func TestConvertSSEEventOpenAIToAnthropic(t *testing.T) {
 	chunk := &message.StreamChunk{
-		ID:     "test-1",
-		Model:  "gpt-4",
+		ID:    "test-1",
+		Model: "gpt-4",
 		Choices: []message.StreamChoice{
 			{
 				Index: 0,
@@ -171,18 +171,18 @@ func TestFormatSSEOutput(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "done event",
-			event: sseEvent{Type: "done"},
+			name:     "done event",
+			event:    sseEvent{Type: "done"},
 			expected: "data: [DONE]\n\n",
 		},
 		{
-			name: "data event",
-			event: sseEvent{Type: sseTypeData, Data: []byte(`{"test":"value"}`)},
+			name:     "data event",
+			event:    sseEvent{Type: sseTypeData, Data: []byte(`{"test":"value"}`)},
 			expected: "data: {\"test\":\"value\"}\n\n",
 		},
 		{
-			name: "event type",
-			event: sseEvent{Type: "event", Data: []byte("event: ping")},
+			name:     "event type",
+			event:    sseEvent{Type: "event", Data: []byte("event: ping")},
 			expected: "event: ping\n\n",
 		},
 	}
@@ -202,25 +202,25 @@ func TestParseSSELine(t *testing.T) {
 	usageData := &message.Usage{}
 
 	// Test data line
-	result := parseSSELine("data: {\"id\":\"test\",\"choices\":[]}", "openai", start, usageData)
+	result := parseSSELine([]byte("data: {\"id\":\"test\",\"choices\":[]}"), "openai", start, usageData)
 	if result.Event.Type != sseTypeData {
 		t.Errorf("expected type 'data', got '%s'", result.Event.Type)
 	}
 
 	// Test [DONE] line
-	result = parseSSELine("data: [DONE]", "openai", start, usageData)
+	result = parseSSELine([]byte("data: [DONE]"), "openai", start, usageData)
 	if result.Event.Type != "done" {
 		t.Errorf("expected type 'done', got '%s'", result.Event.Type)
 	}
 
 	// Test event line
-	result = parseSSELine("event: ping", "openai", start, usageData)
+	result = parseSSELine([]byte("event: ping"), "openai", start, usageData)
 	if result.Event.Type != "event" {
 		t.Errorf("expected type 'event', got '%s'", result.Event.Type)
 	}
 
 	// Test malformed JSON (should return error)
-	result = parseSSELine("data: {invalid json}", "openai", start, usageData)
+	result = parseSSELine([]byte("data: {invalid json}"), "openai", start, usageData)
 	if result.Error == nil {
 		t.Error("expected error for malformed JSON")
 	}
@@ -254,4 +254,3 @@ func TestParseSSEContextCancellation(t *testing.T) {
 		}
 	}
 }
-

@@ -106,4 +106,3 @@ func ExtractAllText(contents []Content) string {
 	}
 	return sb.String()
 }
-

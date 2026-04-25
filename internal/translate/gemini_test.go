@@ -121,7 +121,7 @@ func TestGeminiResponseToMessageResponse(t *testing.T) {
 			map[string]interface{}{
 				"index": 0,
 				"content": map[string]interface{}{
-					"role":  "model",
+					"role": "model",
 					"parts": []interface{}{
 						map[string]interface{}{"text": "Hello there!"},
 					},
@@ -208,7 +208,7 @@ func TestGeminiSSEToOpenAISSE(t *testing.T) {
 	}
 
 	// Parse the converted output
-	dataStr := string(converted[6:]) // skip "data: "
+	dataStr := string(converted[6:])   // skip "data: "
 	dataStr = dataStr[:len(dataStr)-2] // skip "\n\n"
 
 	var chunk message.StreamChunk

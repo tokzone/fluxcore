@@ -1,11 +1,11 @@
 package translate
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"log"
-	"strings"
 	"sync"
 	"time"
 
@@ -37,29 +37,38 @@ const (
 
 // SSEConfig holds SSE configuration.
 type SSEConfig struct {
-	BufferSize    int // Read buffer size (default: 4096)
-	ChannelBuffer int // Event channel buffer size (default: 100)
+	BufferSize         int // Read buffer size (default: 4096)
+	ChannelBuffer      int // Event channel buffer size (default: 100)
+	MaxAccumulatedSize int // Max accumulated data size (default: 1MB, prevents unbounded growth)
 }
 
 var sseConfig = SSEConfig{
-	BufferSize:    4096,
-	ChannelBuffer: 100,
+	BufferSize:         4096,
+	ChannelBuffer:      100,
+	MaxAccumulatedSize: 1024 * 1024, // 1MB
 }
 
 var sseConfigMu sync.RWMutex
 
-// GetSSEConfig returns the current SSE configuration.
 func GetSSEConfig() SSEConfig {
 	sseConfigMu.RLock()
 	defer sseConfigMu.RUnlock()
 	return sseConfig
 }
 
+// SSE byte prefixes (package-level constants, avoid allocation per call)
+var (
+	sseDataPrefix  = []byte("data: ")
+	sseEventPrefix = []byte("event: ")
+	sseDoneMarker  = []byte("[DONE]")
+	sseSuffix      = []byte("\n\n")
+)
+
 type sseEvent struct {
-	Type   string            // sseTypeData, sseTypeEvent, SSETypeDone, sseTypeError
-	Data   []byte            // Raw data payload
+	Type   string               // sseTypeData, sseTypeEvent, SSETypeDone, sseTypeError
+	Data   []byte               // Raw data payload
 	Chunk  *message.StreamChunk // Parsed chunk (for data events)
-	Format string            // Source format
+	Format string               // Source format
 }
 
 type sseParseResult struct {
@@ -72,6 +81,7 @@ func ParseSSEStream(ctx context.Context, reader io.ReadCloser, format string, st
 	sseConfigMu.RLock()
 	bufSize := sseConfig.BufferSize
 	chBuf := sseConfig.ChannelBuffer
+	maxAccum := sseConfig.MaxAccumulatedSize
 	sseConfigMu.RUnlock()
 
 	ch := make(chan sseParseResult, chBuf)
@@ -86,7 +96,7 @@ func ParseSSEStream(ctx context.Context, reader io.ReadCloser, format string, st
 		defer reader.Close()
 
 		buf := make([]byte, bufSize)
-		accumulated := &strings.Builder{}
+		accumulated := &bytes.Buffer{}
 		usageData := &message.Usage{}
 
 		for {
@@ -101,15 +111,33 @@ func ParseSSEStream(ctx context.Context, reader io.ReadCloser, format string, st
 			n, readErr := reader.Read(buf)
 			if n > 0 {
 				accumulated.Write(buf[:n])
-				data := accumulated.String()
 
-				lines := strings.Split(data, "\n\n")
+				// Prevent unbounded growth: process data before resetting
+				if accumulated.Len() > maxAccum {
+					log.Printf("[fluxcore] SSE accumulated data exceeds limit")
+					data := accumulated.Bytes()
+					lines := bytes.Split(data, sseSuffix)
+					for i := 0; i < len(lines)-1; i++ {
+						result := parseSSELine(lines[i], format, startTime, usageData)
+						if result.Event.Type != "" {
+							ch <- result
+						}
+					}
+					accumulated.Reset()
+					if len(lines) > 0 {
+						accumulated.Write(lines[len(lines)-1])
+					}
+					continue
+				}
+
+				data := accumulated.Bytes()
+
+				lines := bytes.Split(data, sseSuffix)
 				accumulated.Reset()
-				accumulated.WriteString(lines[len(lines)-1])
+				accumulated.Write(lines[len(lines)-1])
 
 				for i := 0; i < len(lines)-1; i++ {
-					line := lines[i]
-					result := parseSSELine(line, format, startTime, usageData)
+					result := parseSSELine(lines[i], format, startTime, usageData)
 					if result.Event.Type != "" {
 						ch <- result
 					}
@@ -131,16 +159,16 @@ func ParseSSEStream(ctx context.Context, reader io.ReadCloser, format string, st
 	return ch
 }
 
-func parseSSELine(line, format string, startTime time.Time, usageData *message.Usage) sseParseResult {
+func parseSSELine(line []byte, format string, startTime time.Time, usageData *message.Usage) sseParseResult {
 	result := sseParseResult{}
 
-	if strings.HasPrefix(line, "data: ") {
-		dataStr := strings.TrimPrefix(line, "data: ")
+	if bytes.HasPrefix(line, sseDataPrefix) {
+		data := bytes.TrimPrefix(line, sseDataPrefix)
 
-		if dataStr == "[DONE]" {
+		if bytes.Equal(data, sseDoneMarker) {
 			result.Event = sseEvent{
 				Type: SSETypeDone,
-				Data: []byte("[DONE]"),
+				Data: sseDoneMarker,
 			}
 			usageData.LatencyMs = int(time.Since(startTime).Milliseconds())
 			return result
@@ -148,54 +176,53 @@ func parseSSELine(line, format string, startTime time.Time, usageData *message.U
 
 		parser := getChunkParser(format)
 		if parser != nil {
-			chunk, err := parser([]byte(dataStr))
+			chunk, err := parser(data)
 			if err != nil {
 				log.Printf("[fluxcore] malformed %s SSE chunk: %v", format, err)
 				result.Error = err
 				return result
 			}
 			if chunk == nil {
-				return result // skip non-text events
+				return result
 			}
 			result.Event = sseEvent{
 				Type:   sseTypeData,
-				Data:   []byte(dataStr),
+				Data:   data,
 				Chunk:  chunk,
 				Format: format,
 			}
-			if chunk.Usage != nil {
-				usageData.InputTokens = chunk.Usage.InputTokens
-				usageData.OutputTokens = chunk.Usage.OutputTokens
-				usageData.IsAccurate = true
-			}
+			updateUsage(usageData, chunk.Usage)
 		} else {
-			// OpenAI/Anthropic format (default)
 			var chunk message.StreamChunk
-			if err := json.Unmarshal([]byte(dataStr), &chunk); err != nil {
+			if err := json.Unmarshal(data, &chunk); err != nil {
 				log.Printf("[fluxcore] malformed SSE chunk: %v", err)
 				result.Error = err
 				return result
 			}
 			result.Event = sseEvent{
 				Type:   sseTypeData,
-				Data:   []byte(dataStr),
+				Data:   data,
 				Chunk:  &chunk,
 				Format: format,
 			}
-			if chunk.Usage != nil {
-				usageData.InputTokens = chunk.Usage.InputTokens
-				usageData.OutputTokens = chunk.Usage.OutputTokens
-				usageData.IsAccurate = true
-			}
+			updateUsage(usageData, chunk.Usage)
 		}
-	} else if strings.HasPrefix(line, "event: ") {
+	} else if bytes.HasPrefix(line, sseEventPrefix) {
 		result.Event = sseEvent{
 			Type: sseTypeEvent,
-			Data: []byte(line),
+			Data: line,
 		}
 	}
 
 	return result
+}
+
+func updateUsage(usageData *message.Usage, usage *message.Usage) {
+	if usage != nil {
+		usageData.InputTokens = usage.InputTokens
+		usageData.OutputTokens = usage.OutputTokens
+		usageData.IsAccurate = true
+	}
 }
 
 // SSE conversion function types
@@ -221,19 +248,13 @@ var (
 
 func ConvertSSEEvent(event sseEvent, fromFormat, toFormat string) []byte {
 	if fromFormat == toFormat {
-		if event.Type == sseTypeData {
-			return []byte("data: " + string(event.Data) + "\n\n")
-		} else if event.Type == sseTypeEvent {
-			return []byte(string(event.Data) + "\n\n")
-		}
-		return nil
+		return FormatSSEOutput(event, toFormat)
 	}
 
 	if event.Type != sseTypeData {
 		return nil
 	}
 
-	// Direct conversion to OpenAI
 	if toFormat == "openai" {
 		if conv, ok := toOpenAI[fromFormat]; ok && event.Data != nil {
 			return conv(event.Data)
@@ -281,25 +302,24 @@ func joinAnthropicEvents(events []string) []byte {
 	if len(events) == 0 {
 		return nil
 	}
-	var sb strings.Builder
+	var buf bytes.Buffer
 	for _, e := range events {
-		sb.WriteString(e)
+		buf.WriteString(e)
 	}
-	return []byte(sb.String())
+	return buf.Bytes()
 }
 
-// convertViaOpenAI converts SSE format via OpenAI intermediate
-func convertViaOpenAI(data []byte, toOpenAI func([]byte) []byte, fromOpenAI func(*message.StreamChunk) []byte) []byte {
-	openaiData := toOpenAI(data)
+func convertViaOpenAI(inputData []byte, toOpenAI func([]byte) []byte, fromOpenAI func(*message.StreamChunk) []byte) []byte {
+	openaiData := toOpenAI(inputData)
 	if openaiData == nil {
 		return nil
 	}
 
-	dataStr := strings.TrimPrefix(string(openaiData), "data: ")
-	dataStr = strings.TrimSuffix(dataStr, "\n\n")
+	data := bytes.TrimPrefix(openaiData, sseDataPrefix)
+	data = bytes.TrimSuffix(data, sseSuffix)
 
 	var chunk message.StreamChunk
-	if err := json.Unmarshal([]byte(dataStr), &chunk); err != nil {
+	if err := json.Unmarshal(data, &chunk); err != nil {
 		return nil
 	}
 
@@ -309,11 +329,22 @@ func convertViaOpenAI(data []byte, toOpenAI func([]byte) []byte, fromOpenAI func
 func FormatSSEOutput(event sseEvent, targetFormat string) []byte {
 	switch event.Type {
 	case SSETypeDone:
-		return []byte("data: [DONE]\n\n")
+		buf := make([]byte, 0, len(sseDataPrefix)+len(sseDoneMarker)+len(sseSuffix))
+		buf = append(buf, sseDataPrefix...)
+		buf = append(buf, sseDoneMarker...)
+		buf = append(buf, sseSuffix...)
+		return buf
 	case sseTypeEvent:
-		return []byte(string(event.Data) + "\n\n")
+		buf := make([]byte, 0, len(event.Data)+len(sseSuffix))
+		buf = append(buf, event.Data...)
+		buf = append(buf, sseSuffix...)
+		return buf
 	case sseTypeData:
-		return []byte("data: " + string(event.Data) + "\n\n")
+		buf := make([]byte, 0, len(sseDataPrefix)+len(event.Data)+len(sseSuffix))
+		buf = append(buf, sseDataPrefix...)
+		buf = append(buf, event.Data...)
+		buf = append(buf, sseSuffix...)
+		return buf
 	}
 	return nil
 }

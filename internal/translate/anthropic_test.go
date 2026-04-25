@@ -10,11 +10,11 @@ import (
 
 func TestAnthropicRequestRoundTrip(t *testing.T) {
 	anthropicReq := map[string]interface{}{
-		"model": "claude-3-opus",
+		"model":      "claude-3-opus",
 		"max_tokens": 100,
 		"messages": []interface{}{
 			map[string]interface{}{
-				"role": "user",
+				"role":    "user",
 				"content": "Hello",
 			},
 		},
@@ -51,7 +51,7 @@ func TestAnthropicRequestRoundTrip(t *testing.T) {
 
 func TestAnthropicResponseRoundTrip(t *testing.T) {
 	anthropicResp := map[string]interface{}{
-		"id": "msg-123",
+		"id":    "msg-123",
 		"model": "claude-3-opus",
 		"content": []interface{}{
 			map[string]interface{}{
@@ -124,8 +124,8 @@ func TestAnthropicSSEConversion(t *testing.T) {
 
 	// Test OpenAI SSE to Anthropic SSE
 	openaiChunk := &message.StreamChunk{
-		ID:     "test",
-		Model:  "gpt-4",
+		ID:    "test",
+		Model: "gpt-4",
 		Choices: []message.StreamChoice{
 			{
 				Index: 0,
@@ -162,7 +162,7 @@ func TestAnthropicContentArrayParsing(t *testing.T) {
 						"type": "image",
 						"source": map[string]interface{}{
 							"type": "url",
-							"url": "https://example.com/image.png",
+							"url":  "https://example.com/image.png",
 						},
 					},
 				},

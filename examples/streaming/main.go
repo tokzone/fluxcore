@@ -6,42 +6,53 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/tokzone/fluxcore/call"
-	"github.com/tokzone/fluxcore/routing"
+	"github.com/tokzone/fluxcore/endpoint"
+	"github.com/tokzone/fluxcore/flux"
+	"github.com/tokzone/fluxcore/provider"
 )
 
 func main() {
-	// Define API key
-	key := &routing.Key{
-		BaseURL:  "https://api.openai.com/v1",
-		APIKey:   "sk-your-api-key",
-		Protocol: routing.ProtocolOpenAI,
+	// 1. Define global provider
+	openai := provider.NewProvider(1, "https://api.openai.com", provider.ProtocolOpenAI)
+
+	// 2. Register endpoint to global registry
+	endpoint.RegisterEndpoint(1, openai, "")
+
+	// 3. Create APIKey (Provider + Secret)
+	key, err := flux.NewAPIKey(openai, "sk-your-api-key")
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	// Create endpoint and pool
-	ep, _ := routing.NewEndpoint(1, key, "", 10000) // priority = 10000 (lower is better)
-	pool := routing.NewEndpointPool([]*routing.Endpoint{ep}, 3)
+	// 4. Create UserEndpoint (Endpoint + APIKey + Priority)
+	ue, err := flux.NewUserEndpoint("", key, 1000)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// Request body
+	// 5. Create client
+	client := flux.NewClient([]*flux.UserEndpoint{ue}, flux.WithRetryMax(3))
+
+	// 6. Request body
 	rawReq := []byte(`{
 		"model": "gpt-4",
 		"messages": [{"role": "user", "content": [{"type": "text", "data": "Tell me a joke"}]}],
 		"max_tokens": 100
 	}`)
 
-	// Send streaming request
-	result, err := call.RequestStream(context.Background(), pool, rawReq, routing.ProtocolOpenAI)
+	// 7. Send streaming request
+	result, err := client.DoStream(context.Background(), rawReq, provider.ProtocolOpenAI)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer result.Close()
 
-	// Read chunks
+	// 8. Read chunks
 	for chunk := range result.Ch {
 		fmt.Printf("Chunk: %s\n", chunk)
 	}
 
-	// Get final usage
+	// 9. Get final usage
 	usage := result.Usage()
 	fmt.Printf("Tokens: in=%d, out=%d\n", usage.InputTokens, usage.OutputTokens)
 }

@@ -13,14 +13,14 @@ type ErrorCode string
 
 const (
 	// Network errors
-	CodeNetworkError  ErrorCode = "network_error"  // Connection failures
-	CodeTimeout       ErrorCode = "timeout"        // Request timeout
-	CodeDNSError      ErrorCode = "dns_error"      // DNS resolution failure
+	CodeNetworkError ErrorCode = "network_error" // Connection failures
+	CodeTimeout      ErrorCode = "timeout"       // Request timeout
+	CodeDNSError     ErrorCode = "dns_error"     // DNS resolution failure
 
 	// Server errors
-	CodeRateLimit     ErrorCode = "rate_limit"     // 429 Too Many Requests
-	CodeServerError   ErrorCode = "server_error"   // 5xx errors
-	CodeModelError    ErrorCode = "model_error"    // Model-specific errors (overloaded, not found)
+	CodeRateLimit   ErrorCode = "rate_limit"   // 429 Too Many Requests
+	CodeServerError ErrorCode = "server_error" // 5xx errors
+	CodeModelError  ErrorCode = "model_error"  // Model-specific errors (overloaded, not found)
 
 	// Client errors
 	CodeInvalidRequest ErrorCode = "invalid_request" // 400 Bad Request

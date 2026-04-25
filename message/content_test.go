@@ -10,7 +10,6 @@ func TestContentIsText(t *testing.T) {
 	}
 }
 
-
 func TestExtractAllText(t *testing.T) {
 	t.Parallel()
 	contents := []Content{
@@ -33,4 +32,3 @@ func TestExtractAllTextEmpty(t *testing.T) {
 		t.Errorf("expected empty string, got %q", result)
 	}
 }
-

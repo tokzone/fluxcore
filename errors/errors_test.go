@@ -35,7 +35,7 @@ func TestClassifiedErrorUnwrap(t *testing.T) {
 
 func TestClassifyHTTPErrorAllStatusCodes(t *testing.T) {
 	tests := []struct {
-		statusCode  int
+		statusCode   int
 		expectedCode ErrorCode
 		retryable    bool
 	}{

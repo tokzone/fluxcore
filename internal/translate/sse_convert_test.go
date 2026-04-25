@@ -156,7 +156,6 @@ func TestConvertViaOpenAI(t *testing.T) {
 	})
 }
 
-
 func TestJoinAnthropicEvents(t *testing.T) {
 	t.Run("multiple_events", func(t *testing.T) {
 		events := []string{
@@ -231,7 +230,7 @@ func TestParseSSELineExtended(t *testing.T) {
 
 	t.Run("data_line", func(t *testing.T) {
 		line := "data: {\"choices\":[{\"delta\":{\"content\":[{\"type\":\"text\",\"data\":\"Hello\"}]}}]}"
-		result := parseSSELine(line, "openai", startTime, usageData)
+		result := parseSSELine([]byte(line), "openai", startTime, usageData)
 		if result.Event.Type != sseTypeData {
 			t.Errorf("expected sseTypeData, got %s", result.Event.Type)
 		}
@@ -239,7 +238,7 @@ func TestParseSSELineExtended(t *testing.T) {
 
 	t.Run("done_line", func(t *testing.T) {
 		line := "data: [DONE]"
-		result := parseSSELine(line, "openai", startTime, usageData)
+		result := parseSSELine([]byte(line), "openai", startTime, usageData)
 		if result.Event.Type != SSETypeDone {
 			t.Errorf("expected SSETypeDone, got %s", result.Event.Type)
 		}
@@ -247,14 +246,14 @@ func TestParseSSELineExtended(t *testing.T) {
 
 	t.Run("event_line", func(t *testing.T) {
 		line := "event: content_block_start"
-		result := parseSSELine(line, "openai", startTime, usageData)
+		result := parseSSELine([]byte(line), "openai", startTime, usageData)
 		if result.Event.Type != sseTypeEvent {
 			t.Errorf("expected sseTypeEvent, got %s", result.Event.Type)
 		}
 	})
 
 	t.Run("empty_line", func(t *testing.T) {
-		result := parseSSELine("", "openai", startTime, usageData)
+		result := parseSSELine([]byte(""), "openai", startTime, usageData)
 		if result.Event.Type != "" {
 			t.Errorf("expected empty type, got %s", result.Event.Type)
 		}
@@ -262,7 +261,7 @@ func TestParseSSELineExtended(t *testing.T) {
 
 	t.Run("invalid_json", func(t *testing.T) {
 		line := "data: {invalid json}"
-		result := parseSSELine(line, "openai", startTime, usageData)
+		result := parseSSELine([]byte(line), "openai", startTime, usageData)
 		if result.Error == nil {
 			t.Error("expected error for invalid JSON")
 		}
@@ -270,7 +269,7 @@ func TestParseSSELineExtended(t *testing.T) {
 
 	t.Run("anthropic_format", func(t *testing.T) {
 		line := "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}"
-		result := parseSSELine(line, "anthropic", startTime, usageData)
+		result := parseSSELine([]byte(line), "anthropic", startTime, usageData)
 		if result.Event.Type != sseTypeData {
 			t.Errorf("expected sseTypeData, got %s", result.Event.Type)
 		}
@@ -278,7 +277,7 @@ func TestParseSSELineExtended(t *testing.T) {
 
 	t.Run("gemini_format", func(t *testing.T) {
 		line := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello\"}]},\"index\":0}]}"
-		result := parseSSELine(line, "gemini", startTime, usageData)
+		result := parseSSELine([]byte(line), "gemini", startTime, usageData)
 		if result.Event.Type != sseTypeData {
 			t.Errorf("expected sseTypeData, got %s", result.Event.Type)
 		}
@@ -286,7 +285,7 @@ func TestParseSSELineExtended(t *testing.T) {
 
 	t.Run("cohere_format", func(t *testing.T) {
 		line := "data: {\"event_type\":\"text-generation\",\"is_finished\":false,\"text\":\"Hello\"}"
-		result := parseSSELine(line, "cohere", startTime, usageData)
+		result := parseSSELine([]byte(line), "cohere", startTime, usageData)
 		if result.Event.Type != sseTypeData {
 			t.Errorf("expected sseTypeData, got %s", result.Event.Type)
 		}
