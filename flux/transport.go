@@ -29,7 +29,7 @@ var sharedClient = &http.Client{
 	},
 }
 
-func transport(ctx context.Context, ue *UserEndpoint, body []byte) ([]byte, error) {
+func transport(ctx context.Context, ue *UserEndpoint, body []byte, client *http.Client) ([]byte, error) {
 	// Ensure requests have a deadline for timeout control
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
@@ -43,7 +43,7 @@ func transport(ctx context.Context, ue *UserEndpoint, body []byte) ([]byte, erro
 	}
 	setHeaders(req, ue, false)
 
-	resp, err := sharedClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, errors.ClassifyNetError(err)
 	}

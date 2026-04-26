@@ -3,6 +3,7 @@ package flux
 import (
 	stderrors "errors"
 	"math/rand"
+	"net/http"
 	"slices"
 	"sync/atomic"
 	"time"
@@ -18,6 +19,7 @@ type Client struct {
 	userEndpoints []*UserEndpoint // Pre-sorted by priority
 	retryMax      int
 	cached        atomic.Pointer[UserEndpoint]
+	httpClient    *http.Client
 }
 
 // Option configures Client during creation.
@@ -32,12 +34,23 @@ func WithRetryMax(n int) Option {
 	}
 }
 
+// WithHTTPClient sets a custom HTTP client for requests.
+// If not set, the default sharedClient is used.
+func WithHTTPClient(httpClient *http.Client) Option {
+	return func(c *Client) {
+		if httpClient != nil {
+			c.httpClient = httpClient
+		}
+	}
+}
+
 // NewClient creates a new client with the given user endpoints and options.
 // User endpoints are sorted by priority (lower = preferred) for optimal selection.
 func NewClient(userEndpoints []*UserEndpoint, opts ...Option) *Client {
 	c := &Client{
 		userEndpoints: userEndpoints,
 		retryMax:      3,
+		httpClient:    sharedClient, // Default to shared client
 	}
 
 	// Apply options

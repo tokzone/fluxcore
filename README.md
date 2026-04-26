@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v0.8.0-blue?style=flat)]()
+[![Version](https://img.shields.io/badge/Version-v0.9.0-blue?style=flat)]()
 [![中文](https://img.shields.io/badge/README-中文-red?style=flat)](README_CN.md)
 
 Simple LLM API client with routing and health management.
@@ -36,8 +36,14 @@ key2, _ := flux.NewAPIKey(anthropic, "sk-ant-xxx")
 ue1, _ := flux.NewUserEndpoint("", key1, 1000)
 ue2, _ := flux.NewUserEndpoint("", key2, 800)
 
-// 5. Create client
+// 5. Create client (default HTTP client)
 client := flux.NewClient([]*flux.UserEndpoint{ue1, ue2}, flux.WithRetryMax(3))
+
+// Or with custom HTTP client
+customHTTP := &http.Client{Timeout: 60 * time.Second}
+client := flux.NewClient([]*flux.UserEndpoint{ue1, ue2}, 
+    flux.WithRetryMax(3),
+    flux.WithHTTPClient(customHTTP))
 
 // 6. Send request
 resp, usage, err := client.Do(ctx, rawReq, provider.ProtocolOpenAI)
@@ -58,6 +64,26 @@ for chunk := range result.Ch {
 - **Multi-Tenant** — Shared health state (Provider/Endpoint), private secrets (APIKey) and priorities (UserEndpoint).
 - **Two-Layer Health** — Provider (network) + Endpoint (model) circuit breakers.
 - **Protocol Conversion** — Anthropic in, Gemini out, transparent translation.
+- **Custom HTTP Client** — Inject custom client for connection pool tuning.
+
+---
+
+## Options
+
+```go
+// Retry configuration
+flux.WithRetryMax(5)  // Max retries (default: 3)
+
+// Custom HTTP client
+flux.WithHTTPClient(&http.Client{
+    Timeout: 60 * time.Second,
+    Transport: &http.Transport{
+        MaxIdleConns:        200,
+        MaxIdleConnsPerHost: 20,
+        IdleConnTimeout:     120 * time.Second,
+    },
+})
+```
 
 ---
 

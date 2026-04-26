@@ -74,7 +74,7 @@ func (c *Client) doWithParsedRequest(ctx context.Context, ue *UserEndpoint, req 
 		return nil, nil, fmt.Errorf("convert request: %w", err)
 	}
 
-	respBody, err := transport(ctx, ue, reqBody)
+	respBody, err := transport(ctx, ue, reqBody, c.httpClient)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -239,7 +239,7 @@ func (c *Client) doStreamWithParsedRequest(ctx context.Context, ue *UserEndpoint
 		return nil, fmt.Errorf("convert request: %w", err)
 	}
 
-	respBody, cancel, err := streamTransport(ctx, ue, reqBody)
+	respBody, cancel, err := streamTransport(ctx, ue, reqBody, c.httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -309,8 +309,13 @@ func (c *Client) doStreamWithParsedRequest(ctx context.Context, ue *UserEndpoint
 	}, nil
 }
 
-func streamTransport(ctx context.Context, ue *UserEndpoint, body []byte) (io.ReadCloser, context.CancelFunc, error) {
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+func streamTransport(ctx context.Context, ue *UserEndpoint, body []byte, client *http.Client) (io.ReadCloser, context.CancelFunc, error) {
+	var cancel context.CancelFunc = func() {} // no-op default
+
+	// Ensure requests have a deadline for timeout control
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		ctx, cancel = context.WithTimeout(ctx, defaultTimeout)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", buildURL(ue, true), bytes.NewReader(body))
 	if err != nil {
@@ -319,7 +324,7 @@ func streamTransport(ctx context.Context, ue *UserEndpoint, body []byte) (io.Rea
 	}
 	setHeaders(req, ue, true)
 
-	resp, err := sharedClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		cancel()
 		return nil, nil, errors.ClassifyNetError(err)

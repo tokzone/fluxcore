@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v0.8.0-blue?style=flat)]()
+[![Version](https://img.shields.io/badge/Version-v0.9.0-blue?style=flat)]()
 [![English](https://img.shields.io/badge/README-English-blue?style=flat)](README.md)
 
 简洁的 LLM API 客户端，带路由和健康管理。
@@ -36,8 +36,14 @@ key2, _ := flux.NewAPIKey(anthropic, "sk-ant-xxx")
 ue1, _ := flux.NewUserEndpoint("", key1, 1000)
 ue2, _ := flux.NewUserEndpoint("", key2, 800)
 
-// 5. 创建 Client
+// 5. 创建 Client（默认 HTTP Client）
 client := flux.NewClient([]*flux.UserEndpoint{ue1, ue2}, flux.WithRetryMax(3))
+
+// 或自定义 HTTP Client
+customHTTP := &http.Client{Timeout: 60 * time.Second}
+client := flux.NewClient([]*flux.UserEndpoint{ue1, ue2}, 
+    flux.WithRetryMax(3),
+    flux.WithHTTPClient(customHTTP))
 
 // 6. 发送请求
 resp, usage, err := client.Do(ctx, rawReq, provider.ProtocolOpenAI)
@@ -58,6 +64,26 @@ for chunk := range result.Ch {
 - **多租户** — 共享健康状态（Provider/Endpoint），私有密钥（APIKey）和优先级（UserEndpoint）。
 - **双层健康** — Provider（网络）+ Endpoint（模型）熔断器。
 - **协议转换** — Anthropic 输入，Gemini 输出，透明转换。
+- **自定义 HTTP Client** — 注入自定义 Client 调整连接池参数。
+
+---
+
+## Options 配置
+
+```go
+// 重试配置
+flux.WithRetryMax(5)  // 最大重试次数（默认：3）
+
+// 自定义 HTTP Client
+flux.WithHTTPClient(&http.Client{
+    Timeout: 60 * time.Second,
+    Transport: &http.Transport{
+        MaxIdleConns:        200,
+        MaxIdleConnsPerHost: 20,
+        IdleConnTimeout:     120 * time.Second,
+    },
+})
+```
 
 ---
 

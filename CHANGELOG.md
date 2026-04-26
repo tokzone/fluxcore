@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.9.0] - 2026-04-26
+
+### Added
+- **WithHTTPClient Option**: Allow custom HTTP client injection
+  - `flux.WithHTTPClient(httpClient *http.Client)` lets users configure connection pool, timeout, etc.
+  - Default: built-in `sharedClient` with sensible defaults (30s timeout, 100 max idle conns)
+
+### Changed
+- **transport/streamTransport signature**: Now accept `client *http.Client` parameter
+  - Before: `transport(ctx, ue, body)`
+  - After: `transport(ctx, ue, body, client)`
+- **streamTransport deadline check**: Now checks for existing deadline before creating context
+  - Consistent with `transport` behavior, avoids unnecessary context allocation
+
+### Migration Guide (v0.8.0 → v0.9.0)
+
+```go
+// No changes needed for existing code
+// Default behavior unchanged
+
+// New: Custom HTTP client
+customClient := &http.Client{
+    Timeout: 60 * time.Second,
+    Transport: &http.Transport{
+        MaxIdleConns: 200,
+    },
+}
+client := flux.NewClient(ues, flux.WithHTTPClient(customClient))
+```
+
 ## [0.8.0] - 2024-04-25
 
 ### Changed
