@@ -22,7 +22,7 @@ func TestGlobalRegistry(t *testing.T) {
 
 func TestRegistryRegister(t *testing.T) {
 	r := NewRegistry()
-	prov := provider.NewProvider(1, "https://api.openai.com")
+	prov := provider.NewProvider(1, provider.SingleBaseURL("https://api.openai.com"))
 	ep, _ := NewEndpoint(1, prov, "", []provider.Protocol{provider.ProtocolOpenAI})
 
 	r.Register(ep)
@@ -34,7 +34,7 @@ func TestRegistryRegister(t *testing.T) {
 
 func TestRegistryGetByProviderModel(t *testing.T) {
 	r := NewRegistry()
-	prov := provider.NewProvider(1, "https://api.openai.com")
+	prov := provider.NewProvider(1, provider.SingleBaseURL("https://api.openai.com"))
 	ep, _ := NewEndpoint(1, prov, "gpt-4", []provider.Protocol{provider.ProtocolOpenAI})
 
 	r.Register(ep)
@@ -53,8 +53,8 @@ func TestRegistryGetByProviderModel(t *testing.T) {
 
 func TestRegistryGetAll(t *testing.T) {
 	r := NewRegistry()
-	prov1 := provider.NewProvider(1, "https://api.openai.com")
-	prov2 := provider.NewProvider(2, "https://api.anthropic.com")
+	prov1 := provider.NewProvider(1, provider.SingleBaseURL("https://api.openai.com"))
+	prov2 := provider.NewProvider(2, provider.SingleBaseURL("https://api.anthropic.com"))
 
 	ep1, _ := NewEndpoint(1, prov1, "", []provider.Protocol{provider.ProtocolOpenAI})
 	ep2, _ := NewEndpoint(2, prov2, "", []provider.Protocol{provider.ProtocolAnthropic})
@@ -70,7 +70,7 @@ func TestRegistryGetAll(t *testing.T) {
 
 func TestRegistryClear(t *testing.T) {
 	r := NewRegistry()
-	prov := provider.NewProvider(1, "https://api.openai.com")
+	prov := provider.NewProvider(1, provider.SingleBaseURL("https://api.openai.com"))
 	ep, _ := NewEndpoint(1, prov, "", []provider.Protocol{provider.ProtocolOpenAI})
 
 	r.Register(ep)
@@ -83,7 +83,7 @@ func TestRegistryClear(t *testing.T) {
 
 func TestRegisterEndpoint(t *testing.T) {
 	// RegisterEndpoint uses globalRegistry
-	prov := provider.NewProvider(1, "https://api.openai.com")
+	prov := provider.NewProvider(1, provider.SingleBaseURL("https://api.openai.com"))
 
 	ep := RegisterEndpoint(2, prov, "", []provider.Protocol{provider.ProtocolOpenAI})
 	if ep == nil {
@@ -102,8 +102,8 @@ func TestRegisterEndpoint(t *testing.T) {
 func TestRegistryMultipleProviders(t *testing.T) {
 	r := NewRegistry()
 
-	prov1 := provider.NewProvider(1, "https://api.openai.com")
-	prov2 := provider.NewProvider(2, "https://api.anthropic.com")
+	prov1 := provider.NewProvider(1, provider.SingleBaseURL("https://api.openai.com"))
+	prov2 := provider.NewProvider(2, provider.SingleBaseURL("https://api.anthropic.com"))
 
 	ep1, _ := NewEndpoint(1, prov1, "", []provider.Protocol{provider.ProtocolOpenAI})
 	ep2, _ := NewEndpoint(2, prov2, "", []provider.Protocol{provider.ProtocolAnthropic})
@@ -122,7 +122,7 @@ func TestRegistryMultipleProviders(t *testing.T) {
 
 func TestRegistrySameProviderDifferentModels(t *testing.T) {
 	r := NewRegistry()
-	prov := provider.NewProvider(1, "https://api.openai.com")
+	prov := provider.NewProvider(1, provider.SingleBaseURL("https://api.openai.com"))
 
 	ep1, _ := NewEndpoint(1, prov, "gpt-4", []provider.Protocol{provider.ProtocolOpenAI})
 	ep2, _ := NewEndpoint(2, prov, "gpt-3.5", []provider.Protocol{provider.ProtocolOpenAI})

@@ -290,7 +290,7 @@ func DoFuncGen(client *Client, inputProtocol provider.Protocol) DoFunc {
 
 			if err == nil {
 				client.Feedback(ue, nil, latencyMs)
-				return resp, usage, ue.BaseURL(), nil
+				return resp, usage, ue.BaseURL(targetProtocol), nil
 			}
 
 			lastErr = err
@@ -384,7 +384,7 @@ func StreamDoFuncGen(client *Client, inputProtocol provider.Protocol) StreamDoFu
 					}
 				}()
 
-				return wrappedResult, ue.Model(), ue.BaseURL(), nil
+				return wrappedResult, ue.Model(), ue.BaseURL(targetProtocol), nil
 			}
 
 			lastErr = err

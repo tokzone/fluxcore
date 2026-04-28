@@ -65,8 +65,8 @@ func (ep *Endpoint) SelectProtocol(input provider.Protocol) provider.Protocol {
 	return ep.Protocol()
 }
 
-func (ep *Endpoint) BaseURL() string {
-	return ep.provider.BaseURL
+func (ep *Endpoint) BaseURL(proto provider.Protocol) string {
+	return ep.provider.BaseURLFor(proto)
 }
 
 // IsCircuitBreakerOpen returns true if the endpoint or its provider has circuit breaker open.
@@ -109,15 +109,17 @@ func (ep *Endpoint) Validate() error {
 	if ep.provider == nil {
 		return errors.New("endpoint provider is required")
 	}
-	if ep.provider.BaseURL == "" {
-		return errors.New("endpoint provider.BaseURL is required")
+	if len(ep.provider.BaseURLs) == 0 {
+		return errors.New("endpoint provider.BaseURLs is required (at least one protocol URL)")
 	}
-	u, err := url.Parse(ep.provider.BaseURL)
-	if err != nil {
-		return fmt.Errorf("invalid BaseURL: %w", err)
-	}
-	if u.Scheme != "https" && u.Scheme != "http" {
-		return errors.New("BaseURL must use http or https scheme")
+	for proto, rawURL := range ep.provider.BaseURLs {
+		u, err := url.Parse(rawURL)
+		if err != nil {
+			return fmt.Errorf("invalid BaseURL for %s: %w", proto, err)
+		}
+		if u.Scheme != "https" && u.Scheme != "http" {
+			return fmt.Errorf("BaseURL for %s must use http or https scheme", proto)
+		}
 	}
 
 	// Protocols validation

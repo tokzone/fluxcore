@@ -13,7 +13,7 @@ import (
 
 func main() {
 	// 1. Define global provider
-	openai := provider.NewProvider(1, "https://api.openai.com")
+	openai := provider.NewProvider(1, provider.SingleBaseURL("https://api.openai.com"))
 
 	// 2. Register endpoint to global registry
 	endpoint.RegisterEndpoint(1, openai, "", []provider.Protocol{provider.ProtocolOpenAI})

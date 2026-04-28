@@ -104,6 +104,6 @@ func (ue *UserEndpoint) SelectProtocol(input provider.Protocol) provider.Protoco
 	return ue.endpoint.SelectProtocol(input)
 }
 
-func (ue *UserEndpoint) BaseURL() string {
-	return ue.endpoint.BaseURL()
+func (ue *UserEndpoint) BaseURL(proto provider.Protocol) string {
+	return ue.endpoint.BaseURL(proto)
 }

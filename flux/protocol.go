@@ -30,7 +30,7 @@ func buildURL(ue *UserEndpoint, targetProtocol provider.Protocol, stream bool) s
 	default:
 		path = "/v1/chat/completions"
 	}
-	return ue.BaseURL() + path
+	return ue.BaseURL(targetProtocol) + path
 }
 
 // setHeaders sets the required headers for an API request

@@ -5,15 +5,15 @@ import (
 )
 
 func TestNewProvider(t *testing.T) {
-	p := NewProvider(1, "https://api.openai.com")
+	p := NewProvider(1, SingleBaseURL("https://api.openai.com"))
 	if p == nil {
 		t.Fatal("expected Provider")
 	}
 	if p.ID != 1 {
 		t.Errorf("expected ID 1, got %d", p.ID)
 	}
-	if p.BaseURL != "https://api.openai.com" {
-		t.Errorf("expected BaseURL https://api.openai.com, got %s", p.BaseURL)
+	if p.BaseURLs[ProtocolOpenAI] != "https://api.openai.com" {
+		t.Errorf("expected BaseURL https://api.openai.com, got %s", p.BaseURLs[ProtocolOpenAI])
 	}
 }
 
@@ -37,7 +37,7 @@ func TestProtocolString(t *testing.T) {
 }
 
 func TestProviderCircuitBreaker(t *testing.T) {
-	p := NewProvider(1, "https://api.openai.com")
+	p := NewProvider(1, SingleBaseURL("https://api.openai.com"))
 
 	// Initially closed
 	if p.IsCircuitBreakerOpen() {
@@ -60,7 +60,7 @@ func TestProviderCircuitBreaker(t *testing.T) {
 }
 
 func TestProviderLatencyEWMA(t *testing.T) {
-	p := NewProvider(1, "https://api.openai.com")
+	p := NewProvider(1, SingleBaseURL("https://api.openai.com"))
 
 	// Initial latency should be 0
 	if p.ProviderLatencyEWMA() != 0 {
@@ -81,7 +81,7 @@ func TestProviderLatencyEWMA(t *testing.T) {
 }
 
 func TestProviderIsAvailable(t *testing.T) {
-	p := NewProvider(1, "https://api.openai.com")
+	p := NewProvider(1, SingleBaseURL("https://api.openai.com"))
 
 	// Initially available (circuit breaker closed)
 	if p.IsCircuitBreakerOpen() {
