@@ -2,7 +2,6 @@ package message
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 )
 
@@ -20,6 +19,36 @@ type MessageRequest struct {
 type Message struct {
 	Role    string    `json:"role"`
 	Content []Content `json:"-"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for Message.
+// Accepts both string content ("content": "Hello") and array content ("content": [...]).
+func (m *Message) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Role    string          `json:"role"`
+		Content json.RawMessage `json:"content"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	m.Role = raw.Role
+	if len(raw.Content) == 0 {
+		return nil
+	}
+	if raw.Content[0] == '"' {
+		var text string
+		if err := json.Unmarshal(raw.Content, &text); err != nil {
+			return fmt.Errorf("unmarshal message text content: %w", err)
+		}
+		m.Content = []Content{TextContent(text)}
+		return nil
+	}
+	var contents []Content
+	if err := json.Unmarshal(raw.Content, &contents); err != nil {
+		return fmt.Errorf("unmarshal message content array: %w", err)
+	}
+	m.Content = contents
+	return nil
 }
 
 // MarshalJSON implements custom JSON marshaling for Message.
@@ -84,26 +113,6 @@ type StreamChoice struct {
 	Index        int     `json:"index"`
 	Delta        Message `json:"delta"`
 	FinishReason *string `json:"finish_reason,omitempty"`
-}
-
-// Validate validates the MessageRequest fields.
-func (r *MessageRequest) Validate() error {
-	if r.Model == "" {
-		return errors.New("model is required")
-	}
-	if len(r.Messages) == 0 {
-		return errors.New("messages is required")
-	}
-	if r.Temperature < 0 || r.Temperature > 2 {
-		return errors.New("temperature must be in [0, 2]")
-	}
-	if r.TopP < 0 || r.TopP > 1 {
-		return errors.New("top_p must be in [0, 1]")
-	}
-	if r.MaxTokens < 0 {
-		return errors.New("max_tokens must be non-negative")
-	}
-	return nil
 }
 
 // ParseRequest parses JSON bytes into a MessageRequest.

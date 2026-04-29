@@ -1,53 +1,50 @@
-# fluxcore ⚡
+# fluxcore
 
-**LLM API 客户端库**
+**LLM API 路由引擎**
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v0.9.0-blue?style=flat)]()
+[![Version](https://img.shields.io/badge/Version-v1.0.0-blue?style=flat)]()
 [![English](https://img.shields.io/badge/README-English-blue?style=flat)](README.md)
 
-简洁的 LLM API 客户端，带路由和健康管理。
+领域驱动的 LLM API 路由引擎，带双层熔断和协议转换。
 
 ---
 
 ## 快速开始
 
 ```go
-import (
-    "github.com/tokzone/fluxcore/endpoint"
-    "github.com/tokzone/fluxcore/flux"
-    "github.com/tokzone/fluxcore/provider"
-)
+import "github.com/tokzone/fluxcore"
 
-// 1. 定义 Provider（仅 BaseURL，不绑协议）
-openai := provider.NewProvider(1, "https://api.openai.com")
-anthropic := provider.NewProvider(2, "https://api.anthropic.com")
+// 1. 创建 ServiceEndpoint（每个外部 AI 服务一个）
+openaiSE := fluxcore.NewServiceEndpoint(fluxcore.Service{
+    Name:     "openai",
+    BaseURLs: map[fluxcore.Protocol]string{fluxcore.ProtocolOpenAI: "https://api.openai.com"},
+})
+anthropicSE := fluxcore.NewServiceEndpoint(fluxcore.Service{
+    Name:     "anthropic",
+    BaseURLs: map[fluxcore.Protocol]string{fluxcore.ProtocolAnthropic: "https://api.anthropic.com"},
+})
 
-// 2. 注册 Endpoint 到全局 Registry（带协议能力列表）
-endpoint.RegisterEndpoint(1, openai, "", []provider.Protocol{provider.ProtocolOpenAI})
-endpoint.RegisterEndpoint(2, anthropic, "", []provider.Protocol{provider.ProtocolAnthropic})
+// 2. 创建 Route（每个 模型+密钥 组合一个）
+routes := []*fluxcore.Route{
+    fluxcore.NewRoute(fluxcore.RouteDesc{
+        SvcEP: openaiSE, Model: "gpt-4", Credential: "sk-xxx", Priority: 0,
+    }),
+    fluxcore.NewRoute(fluxcore.RouteDesc{
+        SvcEP: anthropicSE, Model: "claude-3", Credential: "sk-ant-xxx", Priority: 10,
+    }),
+}
 
-// 3. 创建 APIKey（Provider + Secret）
-key1, _ := flux.NewAPIKey(openai, "sk-xxx")
-key2, _ := flux.NewAPIKey(anthropic, "sk-ant-xxx")
+// 3. 构建 RouteTable（预计算，不可变）
+table := fluxcore.NewRouteTable(routes, fluxcore.ProtocolOpenAI)
 
-// 4. 创建 UserEndpoint（Endpoint + APIKey + Priority）
-ue1, _ := flux.NewUserEndpoint("", key1, 1000)
-ue2, _ := flux.NewUserEndpoint("", key2, 800)
+// 4. 执行请求（含重试和故障转移）
+router := fluxcore.NewRouter(fluxcore.ProtocolOpenAI)
+route, resp, usage, err := router.Execute(ctx, table, rawReq, 3)
 
-// 5. 创建 Client
-client := flux.NewClient([]*flux.UserEndpoint{ue1, ue2}, flux.WithRetryMax(3))
-
-// 6. 生成预编译 DoFunc（输入端协议闭包固化，热路径零开销）
-doFunc := flux.DoFuncGen(client, provider.ProtocolOpenAI)
-
-// 7. 发送请求
-resp, usage, providerURL, err := doFunc(ctx, rawReq)
-
-// 8. 流式请求
-streamDoFunc := flux.StreamDoFuncGen(client, provider.ProtocolAnthropic)
-result, model, providerURL, err := streamDoFunc(ctx, rawReq)
+// 5. 流式请求
+route, result, err := router.ExecuteStream(ctx, table, rawReq, 3)
 defer result.Close()
 for chunk := range result.Ch {
     // 处理 chunk
@@ -58,66 +55,113 @@ for chunk := range result.Ch {
 
 ## 核心概念
 
-### Provider（协议无关）
+### ServiceEndpoint（聚合根）
 
-Provider 仅由 BaseURL 标识。协议**不是** Provider 的属性 — 像 DeepSeek 或 OpenRouter 这样的 Provider 同时支持多种协议（OpenAI + Anthropic）。
-
-```go
-prov := provider.NewProvider(id, "https://api.deepseek.com")
-```
-
-### Endpoint = (Provider, Model) + 协议能力列表
-
-Endpoint 通过 `Protocols []Protocol` 声明所支持的协议。协议是**能力**而非身份。
+代表一个外部 AI 服务。持有不可变的 `Service` 值对象和网络层熔断器（阈值=1，恢复=120s）。多个 `Route` 实例可共享引用同一 `ServiceEndpoint`。
 
 ```go
-ep, _ := endpoint.NewEndpoint(1, prov, "deepseek-chat",
-    []provider.Protocol{provider.ProtocolOpenAI, provider.ProtocolAnthropic})
-
-// 检测能力
-ep.HasProtocol(provider.ProtocolAnthropic) // true
-
-// 最佳匹配（命中则直传，未命中则回退到 Protocols[0]）
-target := ep.SelectProtocol(provider.ProtocolAnthropic) // ProtocolAnthropic
-target := ep.SelectProtocol(provider.ProtocolGemini)    // ProtocolOpenAI（回退）
+se := fluxcore.NewServiceEndpoint(fluxcore.Service{
+    Name:     "deepseek",
+    BaseURLs: map[fluxcore.Protocol]string{
+        fluxcore.ProtocolOpenAI:    "https://api.deepseek.com",
+        fluxcore.ProtocolAnthropic: "https://api.deepseek.com/anthropic",
+    },
+})
+se.IsAvailable()     // 熔断状态
+se.Service().Name    // "deepseek"
 ```
 
-### DoFunc / DoFuncGen — Prepare/Do 分离
+### Route（聚合根）
 
-`DoFuncGen(client, inputProtocol)` 预计算每个 endpoint 的目标协议映射，返回 `DoFunc` 闭包。热路径**零协议判断开销**。
+代表通过某服务访问特定模型的路由。由 `IdentityKey()` = `hash(ServiceName, Model, Credential)` 标识。持有模型层熔断器（阈值=3，恢复=60s）。
 
 ```go
-// 启动/reload 时生成一次 — 输入端协议固化在闭包中
-openAIDoFunc := flux.DoFuncGen(client, provider.ProtocolOpenAI)
-
-// 热路径 — 无需传 protocol 参数
-resp, usage, providerURL, err := openAIDoFunc(ctx, body)
+route := fluxcore.NewRoute(fluxcore.RouteDesc{
+    SvcEP:      se,
+    Model:      "gpt-4",
+    Credential: "sk-xxx",
+    Priority:   0,  // 越小优先级越高
+})
+route.IdentityKey()        // "deepseek/gpt-4/sk-xxx"
+route.IsAvailable()        // SvcEP.IsAvailable() && route 熔断器关闭
 ```
 
-`Client.Do()` 和 `Client.DoStream()` 已**废弃** — 推荐使用 `DoFuncGen` / `StreamDoFuncGen`。
+### RouteTable（值对象）
+
+不可变的路由预计算快照。构造一次，`Select()` 遍历可用路由 O(n)。按优先级排序，等优先级随机打散。
+
+```go
+table := fluxcore.NewRouteTable(routes, fluxcore.ProtocolOpenAI)
+route, targetProto := table.Select()  // 第一个可用路由
+```
+
+### Router（领域服务）
+
+无状态服务，通过 `RouteTable` 执行请求。处理协议转换、HTTP 传输、退避重试和双层健康反馈。
+
+```go
+router := fluxcore.NewRouter(fluxcore.ProtocolOpenAI, fluxcore.WithHTTPClient(customClient))
+route, resp, usage, err := router.Execute(ctx, table, body, maxRetry)
+```
+
+### RouteRepository
+
+按 identity key 缓存 `Route` 聚合，确保熔断状态在配置重载和请求周期之间保持。
+
+```go
+repo := fluxcore.NewRouteRepository()
+defer repo.Close()
+
+// 重载时：已有 Route 复用，熔断状态保留
+route := repo.FindOrCreate(desc.IdentityKey(), func() *fluxcore.Route {
+    return fluxcore.NewRoute(desc)
+})
+```
 
 ---
 
-## 特性
+## 双层熔断器
 
-- **简洁 API** — Provider、Endpoint、APIKey、UserEndpoint、Client。五个概念。
-- **协议无关 Provider** — Provider 仅为 BaseURL；协议由 Endpoint 以能力列表声明。
-- **多租户** — 共享健康状态（Provider/Endpoint），私有密钥（APIKey）和优先级（UserEndpoint）。
-- **双层健康** — Provider（网络）+ Endpoint（模型）熔断器。
-- **协议转换** — Anthropic 入，Gemini 出。通过 `SelectProtocol` 回退实现透明协议转换。
-- **Prepare/Do 分离** — `DoFuncGen` 在生成时固化输入端协议；热路径零协议开销。
-- **自定义 HTTP Client** — 注入自定义 Client 调整连接池参数。
+```
+ServiceEndpoint 层（网络）：
+  DNS / 连接拒绝 / 超时 → 立即熔断（阈值=1）
+  恢复：120s
+
+Route 层（模型）：
+  429 限流 → 熔断（累计阈值=3）
+  500 服务错误 → 熔断（累计阈值=3）
+  恢复：60s
+  注意：4xx 非 429 错误不触发任何熔断
+```
+
+健康反馈在 `Router.Do()` 中自动处理：
+
+```
+成功：route.MarkSuccess() + route.SvcEP().MarkSuccess()
+网络错误：route.SvcEP().MarkNetworkFailure()
+429/5xx：route.MarkModelFailure()
+4xx 非 429：不触发熔断
+```
+
+---
+
+## 协议转换
+
+当输入协议与服务支持的协议不匹配时，`RouteTable` 在构造时使用 `ProtocolPriority()`（OpenAI > Anthropic > Gemini > Cohere）预计算目标协议。`Router` 透明处理转换。
+
+```go
+// 输入：Anthropic 请求，服务仅支持 OpenAI
+// RouteTable.Select() 返回 targetProto = ProtocolOpenAI
+// Router.Do() 翻译 Anthropic → OpenAI → 响应转回 Anthropic
+```
 
 ---
 
 ## Options 配置
 
 ```go
-// 重试配置
-flux.WithRetryMax(5)  // 最大重试次数（默认：3）
-
 // 自定义 HTTP Client
-flux.WithHTTPClient(&http.Client{
+fluxcore.WithHTTPClient(&http.Client{
     Timeout: 60 * time.Second,
     Transport: &http.Transport{
         MaxIdleConns:        200,
@@ -129,53 +173,64 @@ flux.WithHTTPClient(&http.Client{
 
 ---
 
-## 模块架构
+## 包结构
 
 ```
-flux（用户入口）
-  │
-  └── DoFuncGen(client, inputProtocol) → DoFunc
-      StreamDoFuncGen(client, inputProtocol) → StreamDoFunc
-  │
-flux（用户数据）
-  │
-  ├── APIKey: Provider + Secret（用户私有）
-  └── UserEndpoint: Endpoint + APIKey + Priority（用户私有）
-  │
-endpoint（全局状态）
-  │
-  └── Endpoint: Provider + Model + Protocols[] + Health（全局单例）
-  │
-provider（全局状态）
-  │
-  └── Provider: BaseURL + Health（全局单例，协议无关）
+fluxcore/
+├── fluxcore.go           # Protocol, Model, Service, ParseProtocol, ProtocolPriority
+├── service_endpoint.go   # ServiceEndpoint 聚合（网络熔断）
+├── route.go              # RouteDesc, Route 聚合（模型熔断）
+├── table.go              # RouteTable 值对象（预计算，不可变）
+├── router.go             # Router 领域服务（Do, Stream, Execute, ExecuteStream）
+├── route_repo.go         # RouteRepository（FindOrCreate, TTL 300s, 最大 50000）
+├── errors/               # 错误分类（IsRetryable, IsNetworkError, IsModelError）
+├── message/              # 中间表示类型（MessageRequest, MessageResponse, Usage）
+└── internal/
+    ├── health/           # CircuitBreaker（三态：Closed → Open → HalfOpen → Closed）
+    ├── translate/        # 协议翻译器（OpenAI, Anthropic, Gemini, Cohere）+ SSE 解析
+    └── httpclient/       # 共享 HTTP Client
 ```
 
 ---
 
-## 双层熔断器
+## 集成模式
 
+### 单租户（tokrouter CLI 代理）
+
+```go
+// 启动
+svcEPs := map[string]*fluxcore.ServiceEndpoint{...}
+repo := fluxcore.NewRouteRepository()
+oaRouter := fluxcore.NewRouter(fluxcore.ProtocolOpenAI)
+
+// 从配置构建 RouteTable
+routes := configToRoutes(cfg, svcEPs, repo)
+tables := make(map[fluxcore.Model]*fluxcore.RouteTable)
+for model, routes := range groupByModel(routes) {
+    tables[model] = fluxcore.NewRouteTable(routes, fluxcore.ProtocolOpenAI)
+}
+
+// 热路径
+table := tables[fluxcore.Model(model)]
+route, resp, usage, err := oaRouter.Execute(ctx, table, body, maxRetry)
+
+// 重载：svcEPs 和 repo 保持 → 熔断状态保留
 ```
-Provider 层（网络）：
-  连接拒绝 → 立即熔断（阈值=1）
-  恢复：120s
 
-Endpoint 层（模型）：
-  429 Rate Limit → 熔断（阈值=1）
-  500 Server Error → 熔断（阈值=3）
-  恢复：60s
+### 多租户（tokhub SaaS 网关）
+
+```go
+// 缓存策略：RouteTable（10s TTL）+ RouteRepository（300s TTL）
+table := routeTableCache.Get(cacheKey)
+if table == nil {
+    records := endpointRepo.GetActiveByUserID(ctx, userID, model)
+    routes := builder.BuildRoutes(records, svcEPs, routeRepo)
+    // BuildRoutes: 解密密钥 → RouteDesc → repo.FindOrCreate
+    table = fluxcore.NewRouteTable(routes, inputProto)
+    routeTableCache.Set(cacheKey, table, 10*time.Second)
+}
+route, resp, usage, err := router.Execute(ctx, table, body, maxRetry)
 ```
-
----
-
-## 协议选择
-
-当请求以输入协议 X 到达时：
-1. `SelectProtocol(X)` 检查 endpoint 的 `Protocols` 列表是否包含 X
-2. 命中 → 直传（无转换）
-3. 未命中 → 回退到 `Protocols[0]`（应用协议转换）
-
-这使得 DeepSeek（原生 OpenAI）等 Provider 可以通过协议转换为 Anthropic 格式请求服务。
 
 ---
 

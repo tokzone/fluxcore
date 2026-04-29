@@ -31,8 +31,7 @@ func getChunkParser(format string) chunkParser {
 const (
 	sseTypeData  = "data"
 	sseTypeEvent = "event"
-	SSETypeDone  = "done" // exported for external use in call/stream.go
-	sseTypeError = "error"
+	SSETypeDone  = "done"
 )
 
 // SSEConfig holds SSE configuration.
@@ -65,7 +64,7 @@ var (
 )
 
 type sseEvent struct {
-	Type   string               // sseTypeData, sseTypeEvent, SSETypeDone, sseTypeError
+	Type   string               // sseTypeData, sseTypeEvent, SSETypeDone
 	Data   []byte               // Raw data payload
 	Chunk  *message.StreamChunk // Parsed chunk (for data events)
 	Format string               // Source format

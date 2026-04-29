@@ -1,53 +1,50 @@
-# fluxcore ⚡
+# fluxcore
 
-**LLM API Client Library**
+**LLM API Routing Engine**
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v0.9.0-blue?style=flat)]()
+[![Version](https://img.shields.io/badge/Version-v1.0.0-blue?style=flat)]()
 [![中文](https://img.shields.io/badge/README-中文-red?style=flat)](README_CN.md)
 
-Simple LLM API client with routing and health management.
+Domain-driven routing engine for LLM API requests with two-layer circuit breaking and protocol translation.
 
 ---
 
 ## Quick Start
 
 ```go
-import (
-    "github.com/tokzone/fluxcore/endpoint"
-    "github.com/tokzone/fluxcore/flux"
-    "github.com/tokzone/fluxcore/provider"
-)
+import "github.com/tokzone/fluxcore"
 
-// 1. Define providers (baseURL only, protocol-agnostic)
-openai := provider.NewProvider(1, "https://api.openai.com")
-anthropic := provider.NewProvider(2, "https://api.anthropic.com")
+// 1. Create ServiceEndpoints (one per external AI service)
+openaiSE := fluxcore.NewServiceEndpoint(fluxcore.Service{
+    Name:     "openai",
+    BaseURLs: map[fluxcore.Protocol]string{fluxcore.ProtocolOpenAI: "https://api.openai.com"},
+})
+anthropicSE := fluxcore.NewServiceEndpoint(fluxcore.Service{
+    Name:     "anthropic",
+    BaseURLs: map[fluxcore.Protocol]string{fluxcore.ProtocolAnthropic: "https://api.anthropic.com"},
+})
 
-// 2. Register endpoints to global registry (with protocol capabilities)
-endpoint.RegisterEndpoint(1, openai, "", []provider.Protocol{provider.ProtocolOpenAI})
-endpoint.RegisterEndpoint(2, anthropic, "", []provider.Protocol{provider.ProtocolAnthropic})
+// 2. Create Routes (one per model+credential combination)
+routes := []*fluxcore.Route{
+    fluxcore.NewRoute(fluxcore.RouteDesc{
+        SvcEP: openaiSE, Model: "gpt-4", Credential: "sk-xxx", Priority: 0,
+    }),
+    fluxcore.NewRoute(fluxcore.RouteDesc{
+        SvcEP: anthropicSE, Model: "claude-3", Credential: "sk-ant-xxx", Priority: 10,
+    }),
+}
 
-// 3. Create APIKeys (Provider + Secret)
-key1, _ := flux.NewAPIKey(openai, "sk-xxx")
-key2, _ := flux.NewAPIKey(anthropic, "sk-ant-xxx")
+// 3. Build a RouteTable (pre-computed, immutable)
+table := fluxcore.NewRouteTable(routes, fluxcore.ProtocolOpenAI)
 
-// 4. Create UserEndpoints (Endpoint + APIKey + Priority)
-ue1, _ := flux.NewUserEndpoint("", key1, 1000)
-ue2, _ := flux.NewUserEndpoint("", key2, 800)
+// 4. Execute with retry and failover
+router := fluxcore.NewRouter(fluxcore.ProtocolOpenAI)
+route, resp, usage, err := router.Execute(ctx, table, rawReq, 3)
 
-// 5. Create client
-client := flux.NewClient([]*flux.UserEndpoint{ue1, ue2}, flux.WithRetryMax(3))
-
-// 6. Generate a pre-prepared DoFunc (input protocol baked in, zero overhead on hot path)
-doFunc := flux.DoFuncGen(client, provider.ProtocolOpenAI)
-
-// 7. Send request
-resp, usage, providerURL, err := doFunc(ctx, rawReq)
-
-// 8. Streaming
-streamDoFunc := flux.StreamDoFuncGen(client, provider.ProtocolAnthropic)
-result, model, providerURL, err := streamDoFunc(ctx, rawReq)
+// 5. Streaming
+route, result, err := router.ExecuteStream(ctx, table, rawReq, 3)
 defer result.Close()
 for chunk := range result.Ch {
     // process chunk
@@ -58,66 +55,113 @@ for chunk := range result.Ch {
 
 ## Core Concepts
 
-### Provider (protocol-agnostic)
+### ServiceEndpoint (Aggregate Root)
 
-A provider is identified solely by its BaseURL. Protocol is **not** a property of the provider — a provider like DeepSeek or OpenRouter supports multiple protocols (OpenAI + Anthropic).
-
-```go
-prov := provider.NewProvider(id, "https://api.deepseek.com")
-```
-
-### Endpoint = (Provider, Model) + Protocol Capabilities
-
-An endpoint declares which protocols it **supports** via `Protocols []Protocol`. Protocol is a capability, not identity.
+Represents an external AI service. Holds an immutable `Service` value object and a network-layer circuit breaker (threshold=1, recovery=120s). Multiple `Route` instances can share a reference to the same `ServiceEndpoint`.
 
 ```go
-ep, _ := endpoint.NewEndpoint(1, prov, "deepseek-chat",
-    []provider.Protocol{provider.ProtocolOpenAI, provider.ProtocolAnthropic})
-
-// Check capability
-ep.HasProtocol(provider.ProtocolAnthropic) // true
-
-// Select best match (returns matching protocol or fallback Protocols[0])
-target := ep.SelectProtocol(provider.ProtocolAnthropic) // ProtocolAnthropic
-target := ep.SelectProtocol(provider.ProtocolGemini)    // ProtocolOpenAI (fallback)
+se := fluxcore.NewServiceEndpoint(fluxcore.Service{
+    Name:     "deepseek",
+    BaseURLs: map[fluxcore.Protocol]string{
+        fluxcore.ProtocolOpenAI:    "https://api.deepseek.com",
+        fluxcore.ProtocolAnthropic: "https://api.deepseek.com/anthropic",
+    },
+})
+se.IsAvailable()     // CB state
+se.Service().Name    // "deepseek"
 ```
 
-### DoFunc / DoFuncGen — Prepare/Do Separation
+### Route (Aggregate Root)
 
-`DoFuncGen(client, inputProtocol)` pre-computes the target protocol mapping for each endpoint and returns a `DoFunc` closure. The hot path has **zero protocol decision overhead**.
+Represents a specific model route through a service. Identified by `IdentityKey()` = `hash(ServiceName, Model, Credential)`. Holds a model-layer circuit breaker (threshold=3, recovery=60s).
 
 ```go
-// Generated once at startup/reload — input protocol baked into closure
-openAIDoFunc := flux.DoFuncGen(client, provider.ProtocolOpenAI)
-
-// Hot path — no protocol parameter needed
-resp, usage, providerURL, err := openAIDoFunc(ctx, body)
+route := fluxcore.NewRoute(fluxcore.RouteDesc{
+    SvcEP:      se,
+    Model:      "gpt-4",
+    Credential: "sk-xxx",
+    Priority:   0,  // lower = higher priority
+})
+route.IdentityKey()        // "deepseek/gpt-4/sk-xxx"
+route.IsAvailable()        // SvcEP.IsAvailable() && route CB closed
 ```
 
-`Client.Do()` and `Client.DoStream()` are **deprecated** — prefer `DoFuncGen` / `StreamDoFuncGen`.
+### RouteTable (Value Object)
+
+An immutable, pre-computed snapshot of routes. Constructed once, then `Select()` is O(n) over available routes. Routes are sorted by priority; equal-priority routes are randomly shuffled.
+
+```go
+table := fluxcore.NewRouteTable(routes, fluxcore.ProtocolOpenAI)
+route, targetProto := table.Select()  // first available route
+```
+
+### Router (Domain Service)
+
+Stateless service that executes requests through a `RouteTable`. Handles protocol translation, HTTP transport, retry with backoff, and two-layer health feedback.
+
+```go
+router := fluxcore.NewRouter(fluxcore.ProtocolOpenAI, fluxcore.WithHTTPClient(customClient))
+route, resp, usage, err := router.Execute(ctx, table, body, maxRetry)
+```
+
+### RouteRepository
+
+Caches `Route` aggregates by identity key, enabling circuit breaker state to survive config reloads and request cycles.
+
+```go
+repo := fluxcore.NewRouteRepository()
+defer repo.Close()
+
+// On reload: existing routes are reused, CB state preserved
+route := repo.FindOrCreate(desc.IdentityKey(), func() *fluxcore.Route {
+    return fluxcore.NewRoute(desc)
+})
+```
 
 ---
 
-## Features
+## Two-Layer Circuit Breaker
 
-- **Simple API** — Provider, Endpoint, APIKey, UserEndpoint, Client. Five concepts.
-- **Protocol-Agnostic Provider** — Provider is just a BaseURL. Protocol is declared by Endpoint as a capability list.
-- **Multi-Tenant** — Shared health state (Provider/Endpoint), private secrets (APIKey) and priorities (UserEndpoint).
-- **Two-Layer Health** — Provider (network) + Endpoint (model) circuit breakers.
-- **Protocol Translation** — Anthropic in, Gemini out. Transparent protocol conversion via `SelectProtocol` fallback.
-- **Prepare/Do Separation** — `DoFuncGen` bakes input protocol at generation time; hot path is zero-protocol.
-- **Custom HTTP Client** — Inject custom client for connection pool tuning.
+```
+ServiceEndpoint layer (network):
+  DNS / Connection refused / Timeout → Immediate trip (threshold=1)
+  Recovery: 120s
+
+Route layer (model):
+  429 Rate Limit → Trip (threshold=3 cumulative)
+  500 Server Error → Trip (threshold=3 cumulative)
+  Recovery: 60s
+  Note: 4xx non-429 errors do NOT trip any circuit breaker
+```
+
+Health feedback happens automatically in `Router.Do()`:
+
+```
+Success: route.MarkSuccess() + route.SvcEP().MarkSuccess()
+Network error: route.SvcEP().MarkNetworkFailure()
+429/5xx: route.MarkModelFailure()
+4xx non-429: no CB change
+```
+
+---
+
+## Protocol Translation
+
+When the input protocol doesn't match what the service supports, `RouteTable` pre-computes the target protocol at construction time using `ProtocolPriority()` (OpenAI > Anthropic > Gemini > Cohere). `Router` handles the translation transparently.
+
+```go
+// Input: Anthropic request, Service only supports OpenAI
+// RouteTable.Select() returns targetProto = ProtocolOpenAI
+// Router.Do() translates Anthropic → OpenAI → response back to Anthropic
+```
 
 ---
 
 ## Options
 
 ```go
-// Retry configuration
-flux.WithRetryMax(5)  // Max retries (default: 3)
-
 // Custom HTTP client
-flux.WithHTTPClient(&http.Client{
+fluxcore.WithHTTPClient(&http.Client{
     Timeout: 60 * time.Second,
     Transport: &http.Transport{
         MaxIdleConns:        200,
@@ -129,53 +173,64 @@ flux.WithHTTPClient(&http.Client{
 
 ---
 
-## Module Architecture
+## Package Structure
 
 ```
-flux (user entry)
-  │
-  └── DoFuncGen(client, inputProtocol) → DoFunc
-      StreamDoFuncGen(client, inputProtocol) → StreamDoFunc
-  │
-flux (user data)
-  │
-  ├── APIKey: Provider + Secret (user private)
-  └── UserEndpoint: Endpoint + APIKey + Priority (user private)
-  │
-endpoint (global state)
-  │
-  └── Endpoint: Provider + Model + Protocols[] + Health (global singleton)
-  │
-provider (global state)
-  │
-  └── Provider: BaseURL + Health (global singleton, protocol-agnostic)
+fluxcore/
+├── fluxcore.go           # Protocol, Model, Service, ParseProtocol, ProtocolPriority
+├── service_endpoint.go   # ServiceEndpoint aggregate (network CB)
+├── route.go              # RouteDesc, Route aggregate (model CB)
+├── table.go              # RouteTable value object (pre-computed, immutable)
+├── router.go             # Router domain service (Do, Stream, Execute, ExecuteStream)
+├── route_repo.go         # RouteRepository (FindOrCreate, TTL 300s, max 50000)
+├── errors/               # Error classification (IsRetryable, IsNetworkError, IsModelError)
+├── message/              # Intermediate representation types (MessageRequest, MessageResponse, Usage)
+└── internal/
+    ├── health/           # CircuitBreaker (three-state: Closed → Open → HalfOpen → Closed)
+    ├── translate/        # Protocol translators (OpenAI, Anthropic, Gemini, Cohere) + SSE parsing
+    └── httpclient/       # Shared HTTP client
 ```
 
 ---
 
-## Two-Layer Circuit Breaker
+## Integration Patterns
 
+### Single-tenant (tokrouter CLI proxy)
+
+```go
+// Startup
+svcEPs := map[string]*fluxcore.ServiceEndpoint{...}
+repo := fluxcore.NewRouteRepository()
+oaRouter := fluxcore.NewRouter(fluxcore.ProtocolOpenAI)
+
+// Build tables from config
+routes := configToRoutes(cfg, svcEPs, repo)
+tables := make(map[fluxcore.Model]*fluxcore.RouteTable)
+for model, routes := range groupByModel(routes) {
+    tables[model] = fluxcore.NewRouteTable(routes, fluxcore.ProtocolOpenAI)
+}
+
+// Hot path
+table := tables[fluxcore.Model(model)]
+route, resp, usage, err := oaRouter.Execute(ctx, table, body, maxRetry)
+
+// Reload: svcEPs and repo survive → CB state preserved
 ```
-Provider Layer (Network):
-  Connection refused → Immediate circuit (threshold=1)
-  Recovery: 120s
 
-Endpoint Layer (Model):
-  429 Rate Limit → Circuit (threshold=1)
-  500 Server Error → Circuit (threshold=3)
-  Recovery: 60s
+### Multi-tenant (tokhub SaaS gateway)
+
+```go
+// Cache strategy: RouteTable (10s TTL) + RouteRepository (300s TTL)
+table := routeTableCache.Get(cacheKey)
+if table == nil {
+    records := endpointRepo.GetActiveByUser(ctx, userID, model)
+    routes := builder.BuildRoutes(records, svcEPs, routeRepo)
+    // BuildRoutes: decrypt credential → RouteDesc → repo.FindOrCreate
+    table = fluxcore.NewRouteTable(routes, inputProto)
+    routeTableCache.Set(cacheKey, table, 10*time.Second)
+}
+route, resp, usage, err := router.Execute(ctx, table, body, maxRetry)
 ```
-
----
-
-## Protocol Selection
-
-When a request arrives with input protocol X:
-1. `SelectProtocol(X)` checks if the endpoint has X in its `Protocols` list
-2. If yes → direct pass-through (no conversion)
-3. If no → fallback to `Protocols[0]` (translation applied)
-
-This enables providers like DeepSeek (native OpenAI) to serve Anthropic-formatted requests via protocol translation.
 
 ---
 
