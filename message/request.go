@@ -99,6 +99,44 @@ type Usage struct {
 	IsAccurate   bool `json:"is_accurate"` // Provider returned accurate usage (not estimated)
 }
 
+// UnmarshalJSON handles both OpenAI wire format (prompt_tokens/completion_tokens)
+// and IR format (input_tokens/output_tokens).
+func (u *Usage) UnmarshalJSON(data []byte) error {
+	// Try OpenAI standard field names first
+	var openai struct {
+		PromptTokens     int  `json:"prompt_tokens"`
+		CompletionTokens int  `json:"completion_tokens"`
+		LatencyMs        int  `json:"latency_ms"`
+		IsAccurate       bool `json:"is_accurate"`
+	}
+	if err := json.Unmarshal(data, &openai); err != nil {
+		return err
+	}
+	if openai.PromptTokens > 0 || openai.CompletionTokens > 0 {
+		u.InputTokens = openai.PromptTokens
+		u.OutputTokens = openai.CompletionTokens
+		u.LatencyMs = openai.LatencyMs
+		u.IsAccurate = openai.IsAccurate
+		return nil
+	}
+
+	// Fall back to IR field names
+	var ir struct {
+		InputTokens  int  `json:"input_tokens"`
+		OutputTokens int  `json:"output_tokens"`
+		LatencyMs    int  `json:"latency_ms"`
+		IsAccurate   bool `json:"is_accurate"`
+	}
+	if err := json.Unmarshal(data, &ir); err != nil {
+		return err
+	}
+	u.InputTokens = ir.InputTokens
+	u.OutputTokens = ir.OutputTokens
+	u.LatencyMs = ir.LatencyMs
+	u.IsAccurate = ir.IsAccurate
+	return nil
+}
+
 // StreamChunk represents a streaming response chunk (OpenAI format)
 type StreamChunk struct {
 	ID      string         `json:"id"`
